@@ -1,0 +1,365 @@
+import numpy as np
+from time import time
+import bpy
+from bpy.types import Operator
+from bpy.props import StringProperty
+from .image_layers_op import MXD_OT_Image_NewUsingPreset
+
+
+class MXD_OT_Node_ImageBake(Operator):
+    bl_idname = "node.image_bake"
+    bl_label = "Bake"
+    bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
+    bl_description = "Bake"
+
+    target_node_group: StringProperty()
+
+    def draw(self, context):
+        return
+
+    def execute(self, context):
+        pref = context.preferences.addons[__package__.partition(".")[0]].preferences
+        bake_settings = pref.image_layers_panel.bake_settings
+        if (bake_settings.mode == 'LAYER') and (bake_settings.image_layers == "—"):
+            self.report({'INFO'}, "Missing target image layer.")
+            return {'CANCELLED'}
+
+        time_start = time()
+        self.set_bake_settings(context)
+
+        ret = self.set_nodes(context)
+        if "CANCELLED" in ret:
+            img = ret['CANCELLED']
+            self.report({'INFO'}, f'Bake Output Image ("{img.name}") should not be in layers.')
+            self.set_bake_settings(context, revert=True)
+            return {'CANCELLED'}
+
+        self.bake(context, ret, bake_settings)
+        self.set_bake_settings(context, revert=True)
+        self.report({'INFO'}, f"Finished in {(time() - time_start):.2f}s")
+        return {'FINISHED'}
+
+    def set_bake_settings(self, context, revert=False):
+        window = context.window
+        scene = context.scene
+        cycles = scene.cycles
+        render = scene.render
+
+        if not revert:
+            window.cursor_modal_set('WAIT')
+
+            self.prior_engine = render.engine
+            self.prior_samples = cycles.samples
+            self.prior_denoising = cycles.use_denoising
+
+            render.engine = 'CYCLES'
+            cycles.samples = 1
+            cycles.use_denoising = False
+        else:
+            render.engine = self.prior_engine
+            cycles.samples = self.prior_samples
+            cycles.use_denoising = self.prior_denoising
+
+            window.cursor_modal_restore()
+
+    def set_nodes(self, context):
+        node_tree = context.object.active_material.node_tree
+        nodes = node_tree.nodes
+
+        node_img_tex = nodes['DoNotChange_BakeOutput']
+        node_group = nodes[self.target_node_group]
+        layers = self.layers = node_group.node_tree.nodes['DoNotChange_PropertyStorage'].layers
+        len_layers = len(layers.items)
+
+        self.active_layers = {}
+        img_tex = node_img_tex.image
+        for index in range(len_layers):
+            node = layers.get_layer_node('OPACITY_SLIDER', index=index)
+            if node.mute:
+                continue
+            self.active_layers[index] = node
+
+            if (node := layers.get_layer_node('IMG_TEX', index=index)):
+                if node.image and (node.image is img_tex):
+                    return {'CANCELLED': img_tex}
+
+        prior_output = None
+        for node in nodes:
+            if (node.bl_idname == 'ShaderNodeOutputMaterial'
+                    and node.is_active_output):
+                prior_output = node
+                break
+
+        if node_img_tex.image is None:
+            if (node := layers.get_layer_node('IMG_TEX')) and (img := node.image):
+                img_size = img.size
+            else:
+                for index in range(len_layers):
+                    node = layers.get_layer_node('IMG_TEX', index=index)
+                    if not node:
+                        continue
+                    if node.mute:
+                        continue
+                    else:
+                        img_size = node.image.size
+
+            MXD_OT_Image_NewUsingPreset.new_image(context, node_img_tex,
+                                                  {'width': img_size[0], 'height': img_size[1],
+                                                   'name': "Bake Output"},
+                                                  )
+
+        imageLayers = context.material.image_layers
+        revert = not imageLayers.is_preview_shown
+        if revert:
+            imageLayers.is_preview_shown = True
+
+        return {
+            'node_img_tex': node_img_tex,
+            'revert': revert,
+            'prior_output': prior_output,
+        }
+
+    def bake(self, context, ret, bake_settings):
+        obj = context.object
+        active_material = obj.active_material
+        materials = obj.data.materials
+        prior_materials = {}
+        for index, material in reversed(list(enumerate(materials))):
+            prior_materials[index] = material
+            if material is not active_material:
+                materials.pop(index=index)
+
+        mat_nodes = active_material.node_tree.nodes
+        prior_active = mat_nodes.active
+
+        node_img_tex = ret['node_img_tex']
+        mat_nodes.active = node_img_tex
+
+        include_alpha = bake_settings.include_alpha
+        if include_alpha:
+            node_tree = bpy.data.node_groups['Preview w/ Alpha']
+            nodes = node_tree.nodes
+            links = node_tree.links
+            group_output = nodes['Group Output'].inputs['Shader']
+            links.new(nodes['Mix'].outputs[2], group_output)
+
+        # time_start = time()
+        with context.temp_override(selected_objects=(context.object,)):
+            bpy.ops.object.bake(type='COMBINED', margin_type=bake_settings.margin_type)
+        bake_output = node_img_tex.image
+        # print(time() - time_start)
+
+        if include_alpha:
+            # ?: When baking with alpha, color is just alpha but with color,...
+            # ...so when alpha is used in shader or for premultiplication, it shrinks.
+
+            img_size = bake_output.size
+            MXD_OT_Image_NewUsingPreset.new_image(context, node_img_tex,
+                                                  {'width': img_size[0], 'height': img_size[1],
+                                                   'name': "Bake Output Alpha"},
+                                                  )
+
+            links.new(nodes['Mix Shader'].outputs['Shader'], group_output)
+            with context.temp_override(selected_objects=(context.object,)):
+                bpy.ops.object.bake(type='COMBINED', margin_type=bake_settings.margin_type)
+            # print(time() - time_start)
+            bake_output_alpha = node_img_tex.image
+            node_img_tex.image = bake_output
+
+            img_pixels = bake_output.pixels
+            len_pixels = len(img_pixels)
+            arr_pixels = np.empty(len_pixels, dtype=np.float32)
+            img_pixels.foreach_get(arr_pixels)
+            arr_alpha = np.empty(len_pixels, dtype=np.float32)
+            bake_output_alpha.pixels.foreach_get(arr_alpha)
+
+            arr_pixels[3::4] = arr_alpha[3::4]
+            img_pixels.foreach_set(arr_pixels)
+
+            bpy.data.images.remove(bake_output_alpha)
+            # print(time() - time_start)
+
+        bake_output.pack()
+
+        if ret['revert']:
+            context.material.image_layers.is_preview_shown = False
+
+        if ret['prior_output']:
+            ret['prior_output'].is_active_output = True
+
+        materials.clear()
+
+        for index, material in reversed(prior_materials.items()):
+            materials.append(material)
+            if material is active_material:
+                obj.active_material_index = index
+                mat_nodes.active = prior_active
+
+        self.update_image_layers(self, bake_settings, bake_output)
+
+    @classmethod
+    def update_image_layers(cls, self, bake_settings, output):
+        layers = self.layers
+        ignore_index = -1
+        mode = bake_settings.mode
+        target_image_layer = bake_settings.target_image_layer
+        target_node_group = self.target_node_group
+        if mode == 'LAYER':
+            node_img_tex = layers.get_layer_node('IMG_TEX', index=target_image_layer)
+            prior_image = node_img_tex.image
+            name = prior_image.name
+            prior_image.name += " - bac"
+            output.name = name
+            node_img_tex.image = output
+
+            ignore_index = target_image_layer
+
+        if self.active_layers:
+            active_layers = list(reversed(self.active_layers.items()))
+
+            for list_index, opacity_slider in active_layers:
+                if list_index == ignore_index:
+                    opacity_slider.mute = False  # When mode == 'LAYER', target may be muted
+                    continue
+                if bake_settings.remove_layers:
+                    layers.active_index = list_index
+                    bpy.ops.image_layers.operations(mode='REMOVE', target_node_group=target_node_group)
+                else:
+                    opacity_slider.mute = True
+
+            if mode == 'NEW':
+                layers.active_index = active_layers[-1][0]
+            else:
+                if bake_settings.remove_layers:
+                    layers.active_index = layers.get_layer_id(int(node_img_tex.name[-3:]))
+                else:
+                    layers.active_index = ignore_index
+
+            if mode == "NEW":
+                bpy.ops.image_layers.operations(mode='ADD', target_node_group=target_node_group)
+                layers.get_layer_node('IMG_TEX').image = output
+
+
+class MXD_OT_Node_MergeImageLayers(Operator):
+    # Maybe it would be better to use pillow or something
+    # TODO: Try setting up pillow in blender
+    bl_idname = "node.image_composite"
+    bl_label = "Composite"
+    bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
+    bl_description = ("XXX: ?: Using <1 opacity would produce subtle difference around the lower transparency edges"
+                      "\nTODO: Test for other errors")
+
+    target_node_group: StringProperty()
+
+    def execute(self, context):
+        pref = context.preferences.addons[__package__.partition(".")[0]].preferences
+        bake_settings = pref.image_layers_panel.bake_settings
+
+        nodes = context.object.active_material.node_tree.nodes
+        target_node_group = nodes[self.target_node_group]
+        node_img_tex = nodes['DoNotChange_BakeOutput']
+        layers = self.layers = target_node_group.node_tree.nodes['DoNotChange_PropertyStorage'].layers
+
+        len_layers = len(layers.items)
+        self.active_layers = {}
+        valid_layers = []
+        opacity = {}
+        use_prior_alpha = {}
+        dimensions = ""
+        for index in range(len_layers):
+            node = layers.get_layer_node('OPACITY_SLIDER', index=index)
+            if node.mute:
+                continue
+            self.active_layers[index] = node
+            opacity_val = node.inputs['Fac'].default_value
+
+            if (node := layers.get_layer_node('IMG_TEX', index=index)) and (image := node.image):
+                    img_dimension = " x ".join(str(s) for s in image.size)
+                    if dimensions:
+                        if img_dimension != dimensions:
+                            self.report(
+                                {'WARNING'},
+                                f'Dimensions of "{image.name}" ({img_dimension}) doesn\'t match {dimensions}'
+                                )
+                            return {'CANCELLED'}
+                    else:
+                        dimensions = img_dimension
+            else:
+                image = list(layers.get_layer_node('MIX_GROUP').inputs['Image'].default_value)
+
+            if opacity_val > 0:
+                valid_layers.append((index, image))
+                opacity[index] = opacity_val
+                use_prior_alpha[index] = not layers.get_layer_node('USE_PRIOR_ALPHA', index=index).mute
+
+        if not valid_layers:
+            return {'CANCELLED'}
+
+        dimensions = dimensions.split(" ")
+        dimensions = [int(dimensions[0]), int(dimensions[-1])]
+        len_pixels = dimensions[0] * dimensions[-1] * 4
+
+        MXD_OT_Image_NewUsingPreset.new_image(
+            context, node_img_tex, {'name': "Output", 'width': dimensions[0], 'height': dimensions[-1]},
+            )
+
+        images_pixels = []
+
+        for list_index, image in reversed(valid_layers):
+            arr_pixels = np.empty(len_pixels, dtype=np.float32)
+            if isinstance(image, list):
+                image[-1] = 1
+                for index, i in enumerate(image):
+                    arr_pixels[index::4] = i
+            else:
+                image.pixels.foreach_get(arr_pixels)
+            images_pixels.append((list_index, arr_pixels))
+
+        for index, (list_index, pixels) in enumerate(images_pixels):
+            r, g, b, a = pixels[0::4], pixels[1::4], pixels[2::4], pixels[3::4]
+
+            first = (index == 0)
+            if use_prior_alpha[list_index]:
+                a *= (0 if first else arr_output[3::4])
+
+            # if (opacity_val := opacity[list_index]) < 1:
+            #     a *= opacity_val  # ?: Semi-transparent pixels around the edge are brighter than their original
+
+            r *= a
+            g *= a
+            b *= a
+
+            if not first:
+                r += arr_output[0::4] * (1 - a)
+                g += arr_output[1::4] * (1 - a)
+                b += arr_output[2::4] * (1 - a)
+                a += arr_output[3::4] * (1 - a)
+
+            arr_output = pixels
+
+        r, g, b, a = arr_output[0::4], arr_output[1::4], arr_output[2::4], arr_output[3::4]
+        r[:] = np.divide(r, a, out=np.zeros_like(a), where=a>0)
+        g[:] = np.divide(g, a, out=np.zeros_like(a), where=a>0)
+        b[:] = np.divide(b, a, out=np.zeros_like(a), where=a>0)
+
+        image_output = node_img_tex.image
+        image_output.pixels.foreach_set(arr_output)
+        image_output.pack()
+
+        MXD_OT_Node_ImageBake.update_image_layers(self, bake_settings, image_output)
+        return {'FINISHED'}
+
+
+classes = (
+    MXD_OT_Node_ImageBake,
+    MXD_OT_Node_MergeImageLayers,
+)
+
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)

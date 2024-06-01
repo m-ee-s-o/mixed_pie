@@ -1,0 +1,45 @@
+import bpy
+import blf
+from mathutils import Vector
+from gpu_extras.batch import batch_for_shader
+from ..utils.utils_box import make_box
+
+
+class Label:  # TODO: Adapt panel layout architecture
+    def __init__(self, text):
+        DEV_DPI = 144
+        self.ui_scale = (bpy.context.preferences.system.dpi / DEV_DPI)
+        blf.size(0, 21 * self.ui_scale)
+        self.dimensions = Vector(blf.dimensions(0, text))
+        self.text = text
+        
+    def draw(self):
+        blf.position(0, *self.origin, 0)
+        blf.size(0, 21 * self.ui_scale)
+        blf.draw(0, self.text)
+
+
+class Button:
+    def __init__(self, id, index, label):
+        self.id = id
+        self.index = index
+        self.bevel_radius = 0
+        self.bevel_segments = 0
+        self.origin = None
+        self.label = Label(label)
+
+    def set_width_height(self, margin: Vector):
+        self.width, self.height = margin * 2 + self.label.dimensions
+
+    def set_label_origin(self, value):
+        label = self.label
+        label.origin = value - (label.dimensions / 2)
+
+    def draw_box(self, shader, include_label=True):
+        tris_verts, tris_indices = make_box(self.origin, self.width, self.height, pattern='TRIS',
+                                            bevel_radius=self.bevel_radius, bevel_segments=self.bevel_segments)
+        box = batch_for_shader(shader, 'TRIS', {'pos': tris_verts}, indices=tris_indices)
+        box.draw(shader)
+        if include_label:
+            self.label.draw()
+

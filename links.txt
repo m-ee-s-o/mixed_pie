@@ -1,0 +1,70 @@
+Multi-file setup                                https://blender.stackexchange.com/questions/202570/multi-files-to-addon
+
+
+Disable multiple keymaps                        https://blender.stackexchange.com/questions/204271/how-to-disable-multiple-keymaps-with-the-same-name
+with the same name
+
+
+Dynamic EnumProperty Items                      https://devtalk.blender.org/t/can-bpy-props-be-used-for-dynamic-lists/10130/12
+                                                https://blender.stackexchange.com/questions/10910/dynamic-enumproperty-by-type-of-selection
+
+
+Copy built-in enum items                        https://blender.stackexchange.com/questions/266656/how-can-i-copy-builtin-enum-items-in-a-new-property
+
+
+Move collection property's items                https://blender.stackexchange.com/questions/23623/collectionproperty-change-items-index
+
+
+Dictionaries in property                        https://blender.stackexchange.com/questions/176328/how-can-i-save-a-dict-in-a-scene-propertygroup
+
+
+Check if class is registered                    https://blenderartists.org/t/find-out-if-a-class-is-registered/602335
+
+
+Check if object has certain properties          https://blender.stackexchange.com/questions/6544/how-to-check-if-an-object-has-a-custom-property-with-python
+
+
+Context override                                https://blender.stackexchange.com/questions/6101/poll-failed-context-incorrect-example-bpy-ops-view3d-background-image-add
+
+
+Force an operator property to always            https://blender.stackexchange.com/questions/94035/force-a-blender-operator-to-always-start-with-default-values
+start with default values
+
+
+Change active tab in Properties                 https://b3d.interplanety.org/en/switching-tabs-in-the-properties-window-with-the-blender-python-api/
+
+
+Check if a bone layer has bones                 https://blenderartists.org/t/how-to-check-if-a-bone-layer-is-empty-with-python/1397249/2
+
+
+Delete bones drivers                            https://blenderartists.org/t/delete-bone-drivers-from-python/685061
+
+
+Refresh UI                                      https://blender.stackexchange.com/questions/45138/buttons-for-custom-properties-dont-refresh-when-changed-by-other-parts-of-the-s
+
+
+Change popup panel spawn position               https://blender.stackexchange.com/questions/153998/add-on-dev-popup-panel-position
+
+
+Access active node tree                         https://blender.stackexchange.com/questions/139033/accessing-the-active-custom-node-tree-in-a-script
+
+
+Creating new material                           https://blender.stackexchange.com/questions/23433/how-to-assign-a-new-material-to-an-object-in-the-scene-from-python
+                                                https://blender.stackexchange.com/questions/5668/add-nodes-to-material-with-python
+                                                https://b3d.interplanety.org/en/creating-links-between-blender-nodes-using-the-python-api/
+
+
+UV                                              https://blender.stackexchange.com/questions/30677/get-set-coordinates-for-uv-vertices-using-python
+                                                https://blender.stackexchange.com/questions/49341/how-to-get-the-uv-corresponding-to-a-vertex-via-the-python-api
+
+
+Loops                                           https://blenderartists.org/t/how-do-i-work-with-edge-face-loops-using-python/1228205/2
+
+
+Draw lines                                      https://b3d.interplanety.org/en/drawing-in-blender-viewport/
+
+
+UV to Region Coordinates                        https://b3d.interplanety.org/en/converting-mouse-cursor-coordinates-from-area-to-texture-coordinates-in-blender-image-editor/
+
+
+Modifying image data fast                       https://blender.stackexchange.com/questions/167265/copy-channels-from-one-image-to-another-using-gpu

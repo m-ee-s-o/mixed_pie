@@ -1,0 +1,111 @@
+import bpy
+from bpy.types import BakeSettings, PropertyGroup
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    IntProperty,
+)
+from .bake_preview import BakePreview
+from ..node_utils import get_node_space
+
+
+class ImageLayers_BakeSettings(BakePreview, PropertyGroup):
+    MODES = [('NEW', "New Image", ""),
+             ('LAYER', "Existing Image Layer", "")]
+    _image_textures = []
+
+    def get_bake(self):
+        return bool(bpy.context.object.active_material.node_tree.nodes.get("DoNotChange_BakeOutput"))
+
+    def set_bake(self, value):
+        nodes = bpy.context.object.active_material.node_tree.nodes
+        name = "DoNotChange_BakeOutput"
+        if value:
+            node_img_tex = nodes.new(type='ShaderNodeTexImage')
+            node_img_tex.name = name
+            node_img_tex.select = False
+
+            if (node_group := self.node_group):
+                frame = node_group.parent
+                node_group.parent = None
+
+                X_SPACE, Y_SPACE = get_node_space()
+                BAKE_PREVIEW_HEIGHT = 127
+                BAKE_PREVIEW_SHIFT = 55
+                # ?: node_group.location freezes if it's inside a frame
+                node_img_tex.location.x = node_group.location.x + node_group.width + (X_SPACE * 2)
+                node_img_tex.location.y = (node_group.location.y - BAKE_PREVIEW_HEIGHT
+                                           + BAKE_PREVIEW_SHIFT - Y_SPACE - (Y_SPACE / 3))
+                node_group.parent = frame
+        else:
+            nodes.remove(nodes.get(name))
+
+    def callback_image_layers(self, context):
+        _image_textures = ImageLayers_BakeSettings._image_textures
+        _image_textures.clear()
+        node_group = context.object.active_material.node_tree.nodes.get(self.target_node_group)
+        if node_group:
+            layers = node_group.node_tree.nodes['DoNotChange_PropertyStorage'].layers
+            cur_node = layers.get_layer_node('IMG_TEX', index=self.target_image_layer)
+            item = (str(self.target_image_layer), cur_node.image.name, "")  \
+                   if cur_node and cur_node.image else                      \
+                   ('—', "—", "")
+
+            _image_textures.append(item)
+
+            for list_index in range(len(layers.items)):
+                if list_index == self.target_image_layer:
+                    continue
+                if (node := layers.get_layer_node('IMG_TEX', index=list_index)) and node.image is not None:
+                    _image_textures.append((str(list_index), f"        {node.image.name}", ""))
+        return _image_textures
+
+    def set_image_layers(self, value):
+        self.target_image_layer = int(ImageLayers_BakeSettings._image_textures[value][0])
+
+    def set_include_alpha(self, value):
+        image_layers = bpy.context.object.active_material.image_layers
+        prior_bake_preview = image_layers.is_preview_shown
+        image_layers.revert_bake_preview()
+        image_layers.preview_type = f"Preview w/{'' if value else 'o'} Alpha"
+        image_layers.is_preview_shown = prior_bake_preview
+
+    is_expanded: BoolProperty(name="Bake", get=get_bake, set=set_bake)
+    is_output_expanded: BoolProperty(name="", default=True)
+    is_margin_expanded: BoolProperty(name="")
+
+    mode: EnumProperty(name="Merge To", items=MODES)
+    image_layers: EnumProperty(name="Image Layers", items=callback_image_layers, set=set_image_layers)
+    target_image_layer: IntProperty(default=-1)
+    remove_layers: BoolProperty(
+        name="Remove Merged Layers",
+        description="Note: Unused images that aren't saved in disk will disappear when closing Blender",
+        )
+    include_alpha: BoolProperty(
+        name="Include Alpha",
+        description="Since another baking process will be done for the alpha, this will make baking approximately twice as long",
+        get=lambda self: (bpy.context.object.active_material.image_layers.preview_type == "Preview w/ Alpha"),
+        set=set_include_alpha,
+        )
+    mt = BakeSettings.bl_rna.properties['margin_type']
+    margin_type: EnumProperty(
+        name=mt.name,
+        description=mt.description,
+        items=[(item.identifier, item.name, item.description) for item in mt.enum_items],
+        default='EXTEND',  # Seems cleaner
+        )
+
+
+classes = (
+    ImageLayers_BakeSettings,
+)
+
+
+def register():
+    for cls in classes:
+        bpy.utils.register_class(cls)
+
+
+def unregister():
+    for cls in classes:
+        bpy.utils.unregister_class(cls)

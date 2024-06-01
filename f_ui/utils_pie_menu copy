@@ -1,0 +1,201 @@
+from math import degrees, radians
+from mathutils import Matrix, Vector
+import gpu
+from gpu_extras.batch import batch_for_shader
+import blf
+from .layout.ui_button import Button
+from .utils.utils_box import make_box
+from .utils.utils_circle import Circle
+
+
+# TODO: Adapt panel layout architecture
+
+
+class Button(Button):
+    def set_origin(self, angle):
+        location = Vector((self.pie_radius, 0))
+        location.rotate(Matrix.Rotation(radians(angle), 2))
+        self.origin = location + self.pie_origin
+        super().set_label_origin(self.origin)
+
+
+class MXD_OT_Utils_PieMenu:
+    # TODO: Update docs
+    # """
+    # Use add_button
+    # Define a self.button_effects(context, button_id)
+    # Call self.invoke_pie_menu(context, event) in invoke()
+    # """
+    # TODO: Add description
+
+    class Buttons(list):
+        _hash_table = {}
+
+        def append(self, button: Button):
+            self._hash_table[button.id] = button
+            super().append(button)
+
+        def __getitem__(self, index):
+            if isinstance(index, str):
+                return self._hash_table[index]
+            return super().__getitem__(index)
+
+    def add_button(self, id, label=""):
+        if not hasattr(self, "buttons"):
+            self.buttons = self.Buttons()
+        index = len(self.buttons)
+        self.buttons.append(Button(id, index, label))
+
+    def invoke_pie_menu(self, context, event):
+        DEV_DPI = 72
+        scale = (context.preferences.system.dpi / DEV_DPI)
+        self.scale = scale
+        self.STARTING_ZONE_RADIUS = 12 * scale
+        self.CENTER_CIRCLE_THICKNESS = 8 * scale
+        self.ARROW_HEAD_LENGTH = 40 * scale
+
+        PIE_RADIUS = 100 * scale
+        TXT_SIZE = 11 * scale
+        X_MARGIN = 10 * scale
+        Y_MARGIN = 10 * scale
+        BEVEL_RADIUS = 4 * scale
+        BEVEL_SEGMENTS = 4 * scale
+
+        self.origin = self.norm_cursor_loc = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.cursor_angle = 0
+
+        blf.size(0, TXT_SIZE)
+        for button in self.buttons:
+            button.pie_radius = PIE_RADIUS
+            button.pie_origin = self.origin
+            button.bevel_radius = BEVEL_RADIUS
+            button.bevel_segments = BEVEL_SEGMENTS
+            button.set_width_height(Vector((X_MARGIN, Y_MARGIN)))
+
+            zone_angle = 360 / len(self.buttons)
+            zone_angle *= button.index
+            button.zone_angle = zone_angle
+            button.set_origin(zone_angle)
+
+        if not hasattr(self, "handler"):
+            context.window_manager.modal_handler_add(self)
+            self.space_data = context.space_data.__class__
+            self.handler = self.space_data.draw_handler_add(self.draw_pie, (), 'WINDOW', 'POST_PIXEL')
+            self.pie_subclassed = False
+        else:
+            self.pie_subclassed = True
+            # TODO: Do something with using these in middle of another modal, cause it would quit all
+            # TODO: Put op bl_label at center
+
+        return {'RUNNING_MODAL'}
+
+    def pie_listener(self, context, event):
+        context.area.tag_redraw()
+
+        match event.type:
+            case 'MOUSEMOVE':
+                norm_cursor_loc = Vector((event.mouse_region_x, event.mouse_region_y)) - self.origin
+                self.norm_cursor_loc = norm_cursor_loc
+                if (norm_cursor_loc.magnitude >= self.STARTING_ZONE_RADIUS) and self.buttons:
+                    self.cursor_angle = degrees(norm_cursor_loc.angle_signed(Vector((10, 0))))
+
+            case 'LEFTMOUSE' if event.value == 'PRESS':
+                self.space_data.draw_handler_remove(self.handler, 'WINDOW')
+                if (self.norm_cursor_loc.magnitude >= self.STARTING_ZONE_RADIUS) and self.buttons:
+                    self.button_effects(context, self.get_current_button_id())
+                    return {'FINISHED'} if not self.pie_subclassed else None
+                else:
+                    return {'CANCELLED'} if not self.pie_subclassed else None
+
+            case 'RIGHTMOUSE' | 'ESC' if event.value == 'PRESS':
+                self.space_data.draw_handler_remove(self.handler, 'WINDOW')
+                return {'CANCELLED'} if not self.pie_subclassed else None
+
+        return {'RUNNING_MODAL'}
+
+    modal = pie_listener
+
+    def get_current_button_id(self):
+        buttons = self.buttons
+        total_buttons = len(buttons)
+        zone_angle = 360 / total_buttons
+        offset = zone_angle / 2
+        for i in range(total_buttons):
+            cursor_angle = self.cursor_angle
+            if (i != 0) and (cursor_angle < 0):
+                cursor_angle += 360
+            if (zone_angle * i - offset) < cursor_angle < (zone_angle * (i + 1) - offset):
+                return buttons[i].id
+
+    def draw_pie(self):
+        self.draw_center_ui()
+        if getattr(self, "button_groups", None):
+            self.draw_button_groups()
+        self.draw_button_ui()
+
+    def draw_center_ui(self):
+        origin = self.origin
+        STARTING_ZONE_RADIUS = self.STARTING_ZONE_RADIUS
+        Circle.draw(origin, STARTING_ZONE_RADIUS, self.CENTER_CIRCLE_THICKNESS, color=(0.329, 0.329, 0.329, 1))
+        Circle.draw(origin, STARTING_ZONE_RADIUS + 1, self.CENTER_CIRCLE_THICKNESS - 2, color=(0, 0, 0, 1))
+
+        if self.norm_cursor_loc.magnitude >= STARTING_ZONE_RADIUS:
+            Circle.draw(origin, STARTING_ZONE_RADIUS + 2, self.CENTER_CIRCLE_THICKNESS - 4,
+                        color=(0.278, 0.447, 0.702, 1), arc=60, offset_angle=self.cursor_angle + 30)
+
+    def draw_button_groups(self):
+        buttons = self.buttons
+        
+        for group in self.button_groups:
+            arc = 0
+            for current_id, next_id in zip(group, group[1:]):
+                current = buttons[current_id]
+                current_angle = current.zone_angle
+                next = buttons[next_id]
+                next_angle = next.zone_angle
+                if current_angle > next_angle:
+                    arc += next_angle - current_angle
+                else:
+                    arc += 360 - (current_angle - next_angle)
+
+            Circle.draw(self.origin, current.pie_radius, arc=arc % 360, offset_angle=buttons[group[-1]].zone_angle, style='LINE')
+
+    def draw_button_ui(self):
+        buttons = self.buttons
+        zone_angle = 360 / len(buttons)
+        offset = zone_angle / 2
+
+        shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+
+        for button in buttons:
+            shader.uniform_float("color", (0, 0, 0, 1))
+
+            # # Squish vertically
+            # angle = zone_angle * button.index
+            # origin = button.origin
+            # origin_copy = origin.copy()
+            # if 80 > angle or angle > 270:
+            #     origin.x += button.width / 2
+            # elif 100 < angle < 260:
+            #     origin.x -= button.width / 2
+
+            button.draw_box(shader, include_label=False)
+
+            if self.norm_cursor_loc.magnitude >= self.STARTING_ZONE_RADIUS:
+                i = button.index
+                cursor_angle = self.cursor_angle
+                if (i != 0) and (cursor_angle < 0):
+                    cursor_angle += 360
+                # If cursor in zone, make another rectangle with brighter color
+                if (zone_angle * i - offset) < cursor_angle < (zone_angle * (i + 1) - offset):
+                    tris_verts, tris_indices = make_box(button.origin, button.width - 2, button.height - 2, pattern='TRIS',
+                                                        bevel_radius=button.bevel_radius, bevel_segments=button.bevel_segments)
+                    shader.uniform_float("color", (0.329 + .1, 0.329 + .1, 0.329 + .1, 1))
+                    box = batch_for_shader(shader, 'TRIS', {'pos': tris_verts}, indices=tris_indices)
+                    box.draw(shader)
+
+            label = button.label
+            # label.origin = origin - (label.dimensions / 2)
+            label.draw()
+            # label.origin = origin_copy - (label.dimensions / 2)
+            # button.origin = origin_copy
