@@ -62,9 +62,12 @@ class MXD_MT_PIE_PaintWeight_Brush(Menu):
 
     def draw(self, context):
         tool_settings = context.tool_settings
-        data_path = ("tool_settings.unified_paint_settings.weight"
+
+        data_path_weight = ("tool_settings.unified_paint_settings.weight"
                      if tool_settings.unified_paint_settings.use_unified_weight else
                      "tool_settings.weight_paint.brush.weight")
+        weight_value = eval("context." + data_path_weight)
+
         brush = tool_settings.weight_paint.brush
         falloff_shape = tool_settings.weight_paint.brush.falloff_shape
         fs = "Falloff Shape: "
@@ -75,35 +78,33 @@ class MXD_MT_PIE_PaintWeight_Brush(Menu):
         layout = self.layout
         pie = layout.menu_pie()
 
-        pie.operator("wm.context_toggle", depress=(use_front_face), text="Front Faces Only",                  # Left
+        pie.operator("wm.context_toggle", depress=(use_front_face), text="Front Faces Only",                                     # Left
                      icon='CHECKBOX_HLT' if use_front_face else 'CHECKBOX_DEHLT'
                      ).data_path = "tool_settings.weight_paint.brush.use_frontface"
 
-        op = pie.operator("wm.context_set_float", text="Set weight to 1", icon='BLANK1')                      # Right
-        op.data_path = data_path
-        op.value = 1
+        pie.separator()                                                                                                          # Right
 
-        pie.operator("wm.call_menu_pie", text="Armature", icon='ARMATURE_DATA').name = "MXD_MT_PIE_Armature"  # Bottom
+        pie.operator("wm.call_menu_pie", text="Armature", icon='ARMATURE_DATA').name = "MXD_MT_PIE_Armature"                     # Bottom
 
-        op = pie.operator("wm.context_toggle_enum", icon='BLANK1',                                            # Top
+        op = pie.operator("wm.context_toggle_enum", icon='BLANK1',                                                               # Top
                           text=fs+("Sphere" if (falloff_shape == 'SPHERE') else "Projected"))
         op.data_path = "tool_settings.weight_paint.brush.falloff_shape"
         op.value_1 = 'SPHERE'
         op.value_2 = 'PROJECTED'
 
-        pie.operator("wm.context_toggle", depress=(use_accumulate), text="Accumulate",                        # Top_left
+        pie.operator("wm.context_toggle", depress=(use_accumulate), text="Accumulate",                                           # Top_left
                      icon='CHECKBOX_HLT' if use_accumulate else 'CHECKBOX_DEHLT'
                      ).data_path = "tool_settings.weight_paint.brush.use_accumulate"
 
-        op = pie.operator("wm.context_set_float", text="Set weight to 0", icon='BLANK1')                      # Top_right
-        op.data_path = data_path
-        op.value = 0
+        op = pie.operator("wm.context_set_float", text=f"Weight: {weight_value:n}", depress=(weight_value == 1), icon='BLANK1')  # Top_right
+        op.data_path = data_path_weight
+        op.value = 1 - weight_value
 
-        pie.operator("wm.context_toggle", depress=(paint_through),                                            # Bottom_left
+        pie.operator("wm.context_toggle", depress=(paint_through),                                                               # Bottom_left
                      icon='CHECKBOX_HLT' if paint_through else 'CHECKBOX_DEHLT',
                      text="Paint Through").data_path = "scene.paint_through.weight"
 
-        pie.separator()  # Bottom_right
+        pie.separator()                                                                                                          # Bottom_right
 
 
 classes = (
