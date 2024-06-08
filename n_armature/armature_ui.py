@@ -100,7 +100,7 @@ class MXD_MT_PIE_Armature_SetAndForget(Menu):
         if addon_utils.check("rigify") == (True, True):
             target = context.object.data.rigify_target_rig
             text = "Re-Generate Rig" if target else "Generate Rig"
-            pie.operator("rigify.wrapper_generate", text=text, icon='POSE_HLT')         # Bottom_right
+            pie.operator("rigify.generate_wrapper", text=text, icon='POSE_HLT')         # Bottom_right
         else:
             pie.separator()
 

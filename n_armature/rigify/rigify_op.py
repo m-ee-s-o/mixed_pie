@@ -19,16 +19,19 @@ class Base_Rigify_Poll:
         return enabled_rigify and rig_id and mode
 
 
-class MXD_OT_Armature_Rigify_WrapperGenerate(Base_Rigify_Poll, Operator):
-    bl_idname = "rigify.wrapper_generate"
+class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
+    bl_idname = "rigify.generate_wrapper"
     bl_label = ""
     bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
-    bl_description = "Wrapper of Rigify Generate Operator.\n"  \
-                     "Changes:\n"                              \
-                     "    Start with FK.\n"                    \
-                     "    IK Stretch disabled.\n"              \
-                     "    BBone Segments to 1.\n"              \
-                     '    Retain "locked" states'
+    bl_description = "Wrapper of Rigify Generate Operator.\n\n"     \
+                     "Changes:\n"                                   \
+                     "    Start with FK.\n"                         \
+                     "    IK Stretch disabled.\n"                   \
+                     "    BBone Segments to 1.\n"                   \
+                     '    Retain "locked" states.\n'                \
+                     "    Retain location, rotation and scale.\n"   \
+                     "    Retain pose position.\n"   \
+                     "    Retain non-rigify-generated constraints"  \
 
     @classmethod
     def poll(cls, context):
@@ -40,13 +43,45 @@ class MXD_OT_Armature_Rigify_WrapperGenerate(Base_Rigify_Poll, Operator):
         locked_visible = None
         if (target_rig := obj.data.rigify_target_rig):
             all_bcolls = target_rig.data.collections_all
+            pose_position = target_rig.data.pose_position
             locked_visible = {b_coll.name: (b_coll.MixedPie.locked, b_coll.is_visible) for b_coll in all_bcolls}
+            bones_rotLocScale_constraints = {}
+            for bone in target_rig.pose.bones:
+                rotLocScale_constraints = [{}, []]
+                for mode in ("rotation_quaternion", "rotation_euler", "rotation_axis_angle", "location", "scale"):
+                    rotLocScale_constraints[0][mode] = tuple(getattr(bone, mode))
+
+                for constraint in bone.constraints:
+                    props = {}
+                    for prop in constraint.bl_rna.properties:
+                        if not prop.is_readonly:
+                            props[prop.identifier] = getattr(constraint, prop.identifier)
+                    rotLocScale_constraints[1].append((constraint.type, props))
+
+                bones_rotLocScale_constraints[bone.name] = rotLocScale_constraints
 
         result = bpy.ops.pose.rigify_generate()
         if result == {'FINISHED'} and locked_visible:
+            target_rig.data.pose_position = pose_position
+
             for name, (locked, visible) in locked_visible.items():
                 all_bcolls[name].MixedPie.locked = locked
                 all_bcolls[name].is_visible = visible
+            
+            for name, (rotLocScale, constraints) in bones_rotLocScale_constraints.items():
+                bone = target_rig.pose.bones[name]
+                for attr, value in rotLocScale.items():
+                    setattr(bone, attr, value)
+
+                b_constraints = bone.constraints
+                for type, constraint in constraints:
+                    if not constraint:
+                        continue
+                    if constraint['name'] in b_constraints:
+                        continue
+                    new_contraint = b_constraints.new(type)
+                    for prop, value in constraint.items():
+                        setattr(new_contraint, prop, value)
 
         target_rig = target_rig or bpy.data.objects[bpy.data.armatures[-1].name]
         if target_rig:
@@ -147,7 +182,7 @@ class MXD_OT_Armature_OneBBoneSegment(Operator):
 
 
 classes = (
-    MXD_OT_Armature_Rigify_WrapperGenerate,
+    MXD_OT_Armature_Rigify_GenerateWrapper,
     MXD_OT_Armature_Rigify_IK_FK,
     MXD_OT_Armature_Rigify_IKStretch,
     MXD_OT_Armature_OneBBoneSegment,
