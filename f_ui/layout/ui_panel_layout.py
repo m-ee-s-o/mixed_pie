@@ -84,11 +84,16 @@ class PanelLayout(Layout):
         self.main_box_modal(context, event)
         super().call_modals(context, event)
 
+    def box_width(self):
+        if not self.children:
+            return self.main_box.width
+        rightmost = max(self.children, key=lambda child: child.origin.x + child.width)
+        return rightmost.origin.x + rightmost.width + self.MARGIN - self.origin.x
+
     def make_elements(self):
         box = self.main_box
         if self.children:
-            rightmost = max(self.children, key=lambda child: child.origin.x + child.width)
-            box.width = rightmost.origin.x + rightmost.width + self.MARGIN - self.origin.x
+            box.width = self.box_width()
             self.attr_holder.main_box_previous_width = box.width  # Used in self.main_box_modal
 
             bottommost = min(self.children, key=lambda child: child.origin.y - child.height)
@@ -101,6 +106,63 @@ class PanelLayout(Layout):
         self.main_box.draw()
         super().draw()
 
+    class _HorizontalSpacingManager:
+        def __init__(self, layout):
+            self.layout = layout
+            self.max_width = layout.box_width() - (layout.MARGIN * 2)
+            self.starting_len = len(layout.children)
+            self.spaces = {}
+
+        def __getattribute__(self, name):
+            value = getattr(super().__getattribute__("layout"), name, None)
+            return value if value is not None else super().__getattribute__(name)
+        
+        def separator(self, space=None):
+            self.spaces[self.layout.children[-1]] = space or self.layout.MARGIN
+        
+        def __enter__(self):
+            return self
+        
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            current_len = len(self.layout.children)
+            len_elements = current_len - self.starting_len
+            elements = {self.layout.children[i]: None for i in range(current_len - len_elements, current_len)}
+            first_element = self.layout.children[current_len - len_elements]
+            if not len_elements:
+                return
+
+            width_per_element = (self.max_width - sum(self.spaces.values())) / len_elements
+            current_x = 0
+
+            previous = None
+            for element in elements:
+                if current_x == 0:
+                    current_x = first_element.origin.x
+                    # If separator is used first
+                    for _element, space in self.spaces.items():
+                        if _element in elements:
+                            break
+                        current_x += space
+
+                element.width = width_per_element
+                PanelLayout.adjust(element)
+                if previous:
+                    element.snap_to(previous, 'RIGHT')
+                else:
+                    pre_origin = element.origin.copy()
+                    element.origin[:] = current_x, first_element.origin.y
+                    self.recur_offset_children_origin(element, *(element.origin - pre_origin))
+
+                previous = element
+
+                current_x += width_per_element
+                if (space := self.spaces.get(element)):
+                    current_x += space
+                    previous = None
+
+    def HorizontalSpacingManager(self):
+        return self._HorizontalSpacingManager(self)
+
     def adjust(self):
         children = self.children
         if len(children) == 1:
@@ -108,6 +170,7 @@ class PanelLayout(Layout):
                 children[0].width = self.width - (self.MARGIN * 2)
             else:
                 children[0].origin.x = self.origin.x + (self.width / 2) - (children[0].width / 2)
+
         elif len(children) > 1:
             left_margin = children[0].origin.x - self.origin.x  # If first child (basis) was offset, adjust accordingly
             space = self.width - left_margin - self.MARGIN
@@ -171,8 +234,8 @@ class PanelLayout(Layout):
             height = 100 * self.ui_scale
         return Box(self, width, height, fill=fill, color=color)
 
-    def collection(self, id, collection, draw_item_func, property_group):
-        return Collection(self, id, collection, draw_item_func, property_group)
+    def collection(self, id, collection, draw_item_func):
+        return Collection(self, id, collection, draw_item_func)
 
     def label(self, text):
         return LabelBox(self, text)

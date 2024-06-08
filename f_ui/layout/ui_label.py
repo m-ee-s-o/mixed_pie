@@ -12,6 +12,7 @@ class LabelBox:
         self.text = str(text)
         Box.__init__(self, parent, 0, 0, fill=False)
         self.text_size = self.root.text_size
+        self.alignment = self.root.text_alignment
 
         # Set minimum size
         blf.size(0, self.text_size * self.ui_scale)
@@ -49,6 +50,8 @@ class LabelBox:
             else:
                 text = ""
 
+        if self.alignment == 'CENTER':
+            origin.x += (self.width / 2) - (self.get_label_dimensions(text).x / 2)
         # print(self.text)
         blf.position(0, *origin, 0)
         blf.size(0, self.text_size * self.ui_scale)

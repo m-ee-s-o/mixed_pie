@@ -27,7 +27,7 @@ class UI_Operator:
     inherit = PanelLayout.inherit
     snap_to = Box.snap_to
 
-    def __init__(self, parent, id_name, label="", icon=None, emboss=True):
+    def __init__(self, parent, id_name, label=None, icon=None, emboss=True):
         self.id_name = id_name
         self._prop = OperatorProp(id_name)
         margin = 4
@@ -40,10 +40,13 @@ class UI_Operator:
         if icon:
             icon = IconBox(self, icon)
             self.width += icon.width * self.ui_scale
+        if label is None:
+            label = bpy.context.window_manager.operator_properties_last(id_name).bl_rna.name
         if label:
             self.width += blf.dimensions(0, label)[0] + margin
             label_box = LabelBox(self, label)
             label_box.center_y = True
+
         self.width = max(self.height, self.width)  # If there are no icon and label, match width with height to make it square
         PanelLayout.adjust(self)
 
@@ -51,7 +54,7 @@ class UI_Operator:
         if self.attr_holder.hold:
             return
         PanelLayout.center(self, x=getattr(self, "center_x", False), y=getattr(self, "center_y", False))
-        Box.make(self)
+        Box.make(self)  # TODO: don't make here
         if Box.point_inside(self, event):
             self.color = (0.4, 0.4, 0.4, 1)
 

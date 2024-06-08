@@ -28,7 +28,7 @@ class MXD_Obj_CollT_UI_Collection_Column(PropertyGroup):
         self['_width'] = value if (value >= self.minimum_width) else self.minimum_width
 
     name: StringProperty(name="", default="Column")
-    width: IntProperty(name="", get=lambda self: self.get("_width", 300), set=set_width)
+    width: IntProperty(name="", get=lambda self: self.get("_width", 400), set=set_width)
     minimum_width = 150
     item_per_column: IntProperty()
     item_count: IntProperty()
@@ -97,7 +97,7 @@ class MXD_Pref_UI_Collection(PropertyGroup):
 
     # Automatic
     minimum_item_per_column: IntProperty(default=5)
-    default_item_per_column: IntProperty(default=9)
+    default_item_per_column: IntProperty(default=15)
     max_column_amount: IntProperty(name="Column Amount", get=get_max_column_amount, set=set_max_column_amount)
     auto_item_per_column: IntProperty(name="Items per Column", get=get_auto_item_per_column, set=set_auto_item_per_column)
     auto_columns: CollectionProperty(type=MXD_Obj_CollT_UI_Collection_Column)
@@ -108,15 +108,19 @@ class MXD_Pref_UI_Collection(PropertyGroup):
     active_column_index: IntProperty()
 
 
-class MXD_Obj_PointT_UI_Collection(MXD_Pref_UI_Collection):
+class MXD_UICollection_PointT_UI_Collection(MXD_Pref_UI_Collection):
     settings_basis: EnumProperty(items=(('GLOBAL', "Global", ""), ('LOCAL', "Local (Object)", "")))
 
+
+class MXD_Pref_UICollection_List(PropertyGroup):
+    list: CollectionProperty(type=MXD_Pref_UI_Collection)
 
 
 classes = (
     MXD_Obj_CollT_UI_Collection_Column,
     MXD_Pref_UI_Collection,
-    MXD_Obj_PointT_UI_Collection,
+    MXD_UICollection_PointT_UI_Collection,
+    MXD_Pref_UICollection_List,
 )
 
 

@@ -3,7 +3,7 @@ from mathutils import Vector
 
 
 class Layout:
-    DEFAULT_BEVEL_RADIUS = 8
+    DEFAULT_BEVEL_RADIUS = 6
     DEFAULT_BEVEL_SEGMENTS = 5
     text_size = 21
 
@@ -19,6 +19,13 @@ class Layout:
             else:
                 self.vertical = True
                 self.horizontal = False
+    
+    class TextAlignment:
+        def __init__(self):
+            self.center = 'CENTER'
+            self.left = 'LEFT'
+            self.right = 'RIGHT'
+            self.alignment = self.left
 
     def __init__(self, operator, origin):
         self.parent_modal_operator = operator
@@ -28,6 +35,7 @@ class Layout:
 
         self.root = self
         self.flow = self.Flow()
+        self.text_alignment = self.TextAlignment()
 
         self.elements = []
         self.children = []

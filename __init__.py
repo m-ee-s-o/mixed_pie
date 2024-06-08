@@ -16,10 +16,10 @@ import importlib
 
 
 modules = {
-    'first': [],
-    'prop': [],
-    'else': [],
-    'last': [],
+    'first': {},
+    'prop': {},
+    'else': {},
+    'last': {},
 }
 
 # print("----------------------------------------------------------------", Path.cwd())
@@ -36,13 +36,14 @@ for path in Path(__file__).parent.rglob("*.py"):
                'prop' if module == ("prop") else
                'last' if module.endswith("out") else
                'else')
-        modules[key].append(importlib.import_module(module))
+        module = importlib.import_module(module)
+        modules[key][module.__name__] = module
 
 
 if "bpy" in locals():
     for group in modules.values():
-        for module in group:
-            if module.__name__.endswith("icons.icons"):
+        for name, module in group.items():
+            if name.endswith("icons.icons"):
                 continue
             importlib.reload(module)
 else:
@@ -51,14 +52,14 @@ else:
 
 def register():
     for group in modules.values():
-        for module in group:
+        for module in group.values():
             if hasattr(module, "register"):
                 module.register()
 
 
 def unregister():
     for group in modules.values():
-        for module in group:
+        for module in group.values():
             if hasattr(module, "unregister"):
                 module.unregister()
 

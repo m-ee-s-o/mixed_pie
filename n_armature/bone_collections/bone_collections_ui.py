@@ -17,7 +17,7 @@ class MXD_OT_Armature_BoneCollectionPanel(MXD_OT_Utils_Panel, Operator):
     def invoke(self, context, event):
         for obj in {context.object, *context.selected_objects}:
             if obj.type == 'ARMATURE':
-                self.object_name = obj.name  # Used name since there is a operator that uses undo (would produce ReferenceError upon undo)
+                self.object_name = obj.name  # Used .name since there is a operator that uses undo (would produce ReferenceError upon undo if only obj)
                 break
         self.collection_pref_panel = MXD_PT_BoneCollectionProperties
         return super().invoke(context, event)
@@ -25,39 +25,40 @@ class MXD_OT_Armature_BoneCollectionPanel(MXD_OT_Utils_Panel, Operator):
     def draw_structure(self, context, event, layout):
         layout.icon_scale = 0.8
 
-        # a = layout.box()
-        # layout.flow(horizontal=True)
-        # layout.current_element = a
-        # layout.box(color=(0, 0, 1, 1))
-        # layout.flow(vertical=True)
-        # layout.current_element = a
-
         collections = bpy.data.objects[self.object_name].data.collections
 
-        layout.collection("bone_collection", collections, self.draw_collection_item,
-                          property_group=bpy.data.objects[self.object_name].MixedPie.ui_collections)
+        ui_coll = layout.collection("bone_collection", collections, self.draw_collection_item)
         layout.flow(horizontal=True)
 
         layout.icon_scale = 0.6
-        add = layout.operator("armature.collection_add", icon='ADD')
+        add = layout.operator("armature.collection_add", label="", icon='ADD')
         layout.flow(vertical=True)
-        layout.operator("armature.collection_remove", icon='REMOVE').snap_to(add, 'BOTTOM')
+        layout.operator("armature.collection_remove", label="", icon='REMOVE').snap_to(add, 'BOTTOM')
 
         if collections.active:
             layout.icon_scale = 1
-            up = layout.operator("armature.collection_move", icon='TRIA_UP')
+            up = layout.operator("armature.collection_move", label="", icon='TRIA_UP')
             up.prop.direction = 'UP'
-            down = layout.operator("armature.collection_move", icon='TRIA_DOWN')
+            down = layout.operator("armature.collection_move", label="", icon='TRIA_DOWN')
             down.prop.direction = 'DOWN'
             down.snap_to(up, 'BOTTOM')
 
+            layout.current_element = ui_coll
+            layout.text_alignment = layout.text_alignment.center
+            with layout.HorizontalSpacingManager() as hsm:
+                hsm.operator("armature.collection_assign", label="Assign")
+                hsm.operator("armature.collection_unassign", label="Remove")
+                hsm.separator()
+                hsm.operator("armature.collection_select", label="Select")
+                hsm.operator("armature.collection_deselect", label="Deselect")
+
     def draw_collection_item(self, layout, collection, item):
-        # TODO: Don't know how to read double click
+        # TODO: read double clicks, time.time()
         ...
         if collection.active == item:
             layout.text(item, "name")
         else:
-            layout.label(item.name).adjustable = True
+            layout.label(item.name)
 
         ui_bcoll = bpy.context.preferences.addons[__package__.partition(".")[0]].preferences.ui_bone_collections
 
@@ -222,8 +223,8 @@ class MXD_PT_BoneCollectionProperties(Panel):
             path = repr(current_properties)
             draw_settings(current_properties, path)
         else:
-            path = "bpy.context.preferences.addons[__package__.partition('.')[0]].preferences.ui_collections"
-            draw_settings(pref.ui_collections, path)
+            path = f"bpy.context.preferences.addons[__package__.partition('.')[0]].preferences.ui_collections.list[{self.current_collection_identifier}]"
+            draw_settings(pref.ui_collections.list[self.current_collection_identifier], path)
 
 
 classes = (

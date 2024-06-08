@@ -41,6 +41,7 @@ class Box(PanelLayout):
         box.draw(shader)
 
     def snap_to(self, target, side_of_target):
+        pre_origin = self.origin
         match side_of_target:
             case 'LEFT':
                 self.origin = target.origin.copy()
@@ -62,3 +63,4 @@ class Box(PanelLayout):
                 self.origin.y -= target.height + 1
                 target.skip_bevel = {'BOTTOM_LEFT', 'BOTTOM_RIGHT'}
                 self.skip_bevel = {'TOP_LEFT', 'TOP_RIGHT'}
+        self.root.recur_offset_children_origin(self, *(self.origin - pre_origin))

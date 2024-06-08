@@ -3,23 +3,21 @@ import bpy
 from mathutils import Vector
 import gpu
 from gpu_extras.batch import batch_for_shader
-from ...utils.utils_box import make_box, point_inside
 from ..ui_panel_layout import PanelLayout
 from ..ui_box import Box
 from ..ui_prop import CollectionProp
+from ...utils.utils_box import make_box, point_inside
 from ....a_utils.utils_func import recur_get_bone_collections, recur_get_bcoll_children
 
 
 # TODO: Improve performance (obvious when moving main box).
-# TODO: Dynamically add and remove ui_collection_prop to what bpy_collection the user provides,
-# different collection elements are distinguished based on id
 
 
 class Collection:
     # msgbus = set()
     inherit = PanelLayout.inherit
 
-    def __init__(self, parent, id, collection, draw_item_func, properties):
+    def __init__(self, parent, id, collection, draw_item_func):
         # TODO: When active_index changes (e.g., when adding new bone collection), scroll to focus on the new collection if its in last column and not within range
 
         # if id not in self.__class__.msgbus:
@@ -33,6 +31,49 @@ class Collection:
         #     )
         #     bpy.msgbus.clear_by_owner(id)
         #     self.__class__.msgbus.add(id)
+
+        type_ = type(collection.id_data)
+        self.collection_identifier = collection.bl_rna.identifier
+        properties_attr = f"MixedPie_UICollection_{self.collection_identifier}"
+        if not hasattr(type_, properties_attr):
+            from . import ui_collection_generated_props
+            from .ui_collection_generated_props import register_template, unregister_template
+            from pathlib import Path
+            from importlib import reload
+
+            file = Path(__file__).with_name("ui_collection_generated_props.py")
+            with file.open("r+") as f:
+                lines = f.readlines()
+
+                register_index = None
+                unregister_index = None
+
+                for index, line in enumerate(lines):
+                    if line.startswith("def register"):
+                        register_index = index + 1
+                    elif line.startswith("def unregister"):
+                        unregister_index = index + 1
+                
+                lines.insert(unregister_index, unregister_template.replace("<id_data_identifier>", type_.__name__).replace("<properties_attr>", properties_attr))
+                lines.insert(register_index, register_template.replace("<id_data_identifier>", type_.__name__).replace("<properties_attr>", properties_attr))
+
+                f.truncate(0)
+                f.seek(0)
+                f.writelines(lines)
+
+            module = reload(ui_collection_generated_props)
+            from ....__init__ import modules
+            for group in modules.values():
+                if module.__name__ in group:
+                    group[module.__name__] = module
+            module.register()
+
+        ui_collections_list = bpy.context.preferences.addons[__package__.partition(".")[0]].preferences.ui_collections.list
+        if self.collection_identifier not in ui_collections_list:
+            ui_collections_list.add().name = self.collection_identifier
+
+        pref = ui_collections_list[self.collection_identifier]
+        properties = getattr(collection.id_data, properties_attr)
 
         Box.__init__(self, parent, 500 * parent.ui_scale, 200 * parent.ui_scale, False, color=(0.5, 0.5, 0.5, 1))
         self.ITEM_HEIGHT = 40 * self.ui_scale
@@ -56,11 +97,8 @@ class Collection:
         self.MARGIN = int(self.MARGIN * 0.55)
         self.vMARGIN_TOP_LEFT = Vector((self.MARGIN, -self.MARGIN))
 
-
         if properties.settings_basis == 'GLOBAL':
-            pref = bpy.context.preferences.addons[__package__.partition(".")[0]].preferences.ui_collections
-            # TODO: pref works for all collection type. Make distinctions for different types.
-            self.item_per_column_path = "bpy.context.preferences.addons[__package__.partition('.')[0]].preferences.ui_collections"  \
+            self.item_per_column_path = f"bpy.context.preferences.addons[__package__.partition('.')[0]].preferences.ui_collections.list['{self.collection_identifier}']"  \
                                         f".{'auto' if pref.column_definition_type == 'AUTOMATIC' else 'custom'}_item_per_column"
         else:
             self.item_per_column_path = f"{repr(properties.id_data)}.{properties.path_from_id(('auto' if properties.column_definition_type == 'AUTOMATIC' else 'custom')+'_item_per_column')}"
@@ -74,7 +112,7 @@ class Collection:
         self.resize_ui_length = (self.ITEM_HEIGHT * 3)
 
         if self.collection.bl_rna.identifier == 'BoneCollections':
-            colls =  recur_get_bone_collections(collection)  # Gets proper order better vs armature.colections_all
+            colls =  recur_get_bone_collections(collection)  # Gets proper order better (tree recursive) vs armature.colections_all (Blender 4.1)
             search_src = collection.id_data.collections_all  # src should be bpy_prop_collection
         else:
             colls = collection
@@ -162,6 +200,7 @@ class Collection:
         if event.type == 'RIGHTMOUSE' and event.value == 'PRESS'  \
                 and Box.point_inside(self, event) and (panel := getattr(self.parent_modal_operator, "collection_pref_panel", None)):
             panel.current_properties = self.properties
+            panel.current_collection_identifier = self.collection_identifier
             bpy.ops.wm.call_panel(name=panel.__name__)
             event.handled = True
             return
@@ -212,7 +251,8 @@ class Collection:
                 increment = self.ITEM_HEIGHT + self.SPACE_BETWEEN_ITEMS
                 basis = self.origin.y - self.MARGIN
                 dy = event.cursor.y - basis
-                setattr(eval(parent), attr, int(abs(dy / increment)))
+                if dy < 0:  # Cursor is below self.origin.y. Would still resize even if the cursor is far above.
+                    setattr(eval(parent), attr, int(abs(dy / increment)))
                 event.handled = True
 
     def make(self):
