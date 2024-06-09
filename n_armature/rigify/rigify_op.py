@@ -1,6 +1,7 @@
 import bpy
 from bpy.types import Operator
 import addon_utils
+from mathutils import Vector
 
 
 class Base_Rigify_Poll:
@@ -23,53 +24,136 @@ class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
     bl_idname = "rigify.generate_wrapper"
     bl_label = ""
     bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
-    bl_description = "Wrapper of Rigify Generate Operator.\n\n"     \
-                     "Changes:\n"                                   \
-                     "    Start with FK.\n"                         \
-                     "    IK Stretch disabled.\n"                   \
-                     "    BBone Segments to 1.\n"                   \
-                     '    Retain "locked" states.\n'                \
-                     "    Retain location, rotation and scale.\n"   \
-                     "    Retain pose position.\n"   \
-                     "    Retain non-rigify-generated constraints"  \
+    bl_description = (
+        "Wrapper of Rigify Generate Operator.\n\n"   
+        "Changes:\n"                                 
+        "    Start with FK.\n"                       
+        "    IK Stretch disabled.\n"                 
+        "    BBone Segments to 1.\n"                 
+        '    Retain "locked" states.\n'              
+        "    Retain location, rotation and scale.\n" 
+        "    Retain pose position.\n"                
+        "    Retain non-rigify-generated bones, constraints, and bone collections"
+        )
 
     @classmethod
     def poll(cls, context):
         return bpy.ops.pose.rigify_generate.poll()
 
     def invoke(self, context, event):
-        obj = context.object
+        metarig = context.object
         
-        locked_visible = None
-        if (target_rig := obj.data.rigify_target_rig):
-            all_bcolls = target_rig.data.collections_all
+        bcoll_properties = {}
+        if (target_rig := metarig.data.rigify_target_rig):
+            # Since rigify_generate() removes post-generate new data, store them so that they ca be remade later
+
             pose_position = target_rig.data.pose_position
-            locked_visible = {b_coll.name: (b_coll.MixedPie.locked, b_coll.is_visible) for b_coll in all_bcolls}
-            bones_rotLocScale_constraints = {}
+            all_bcolls = target_rig.data.collections_all
+
+            # Bone collections
+            for bcoll in all_bcolls:
+                props = {}
+                for prop in bcoll.bl_rna.properties:
+                    if not prop.is_readonly:
+                        value = getattr(bcoll, prop.identifier)
+                        if prop.identifier == "parent" and value:
+                            value = value.name
+                        props[prop.identifier] = value
+
+                props['locked'] = bcoll.MixedPie.locked
+                if bcoll.child_number != 0:
+                    # Maintain arrangement by binding it to its relative above, since if there are more collections added in metarig it could mess the order
+                    siblings = bcoll.parent.children if bcoll.parent else target_rig.data.collections
+                    props['collection_above'] = siblings[bcoll.child_number - 1].name
+
+                bcoll_properties[bcoll.name] = props                
+
+            # edit_bone properties, used to remake bones later
+            context.view_layer.objects.active = target_rig
+            bpy.ops.object.mode_set(mode='EDIT')
+            edit_bone_properties = {}
+            for bone in target_rig.data.edit_bones:
+                props = {}
+                for prop in bone.bl_rna.properties:
+                    if not prop.is_readonly:
+                        value = getattr(bone, prop.identifier)
+                        if isinstance(value, Vector):
+                            value = tuple(value)
+                        if prop.identifier == "parent" and value:
+                            value = value.name
+                        props[prop.identifier] = value
+                edit_bone_properties[bone.name] = props
+
+            # Contraints
+            bones_rotLocScale_constraints_props = {}
             for bone in target_rig.pose.bones:
-                rotLocScale_constraints = [{}, []]
+                rotLocScale = {}
+                constraints = []
+                other_props = {}
+
                 for mode in ("rotation_quaternion", "rotation_euler", "rotation_axis_angle", "location", "scale"):
-                    rotLocScale_constraints[0][mode] = tuple(getattr(bone, mode))
+                    rotLocScale[mode] = tuple(getattr(bone, mode))
 
                 for constraint in bone.constraints:
                     props = {}
                     for prop in constraint.bl_rna.properties:
                         if not prop.is_readonly:
                             props[prop.identifier] = getattr(constraint, prop.identifier)
-                    rotLocScale_constraints[1].append((constraint.type, props))
+                    constraints.append((constraint.type, props))
 
-                bones_rotLocScale_constraints[bone.name] = rotLocScale_constraints
+                other_props['collections'] = tuple(coll.name for coll in bone.bone.collections)
+                bones_rotLocScale_constraints_props[bone.name] = (rotLocScale, constraints, other_props)
 
+        context.view_layer.objects.active = metarig
         result = bpy.ops.pose.rigify_generate()
-        if result == {'FINISHED'} and locked_visible:
+        if result == {'FINISHED'} and bcoll_properties:
             target_rig.data.pose_position = pose_position
 
-            for name, (locked, visible) in locked_visible.items():
-                all_bcolls[name].MixedPie.locked = locked
-                all_bcolls[name].is_visible = visible
+            # Remake missing bone collections
+            for name, props in bcoll_properties.items():
+                collection_above = props.pop('collection_above', None)
+                if (parent_name := props['parent']):
+                    props['parent'] = all_bcolls[parent_name]
+
+                if name not in all_bcolls:
+                    bcoll = target_rig.data.collections.new(name)
+
+                    for prop, value in props.items():
+                        if prop == "locked":
+                            bcoll.MixedPie.locked = value
+                        else:
+                            setattr(bcoll, prop, value)
+                else:
+                    bcoll = all_bcolls[name]
+                    for prop in {"is_visible", "is_solo", "is_expanded"}:
+                        setattr(bcoll, prop, props[prop])
+
+                    bcoll.MixedPie.locked = props['locked']
+
+                if collection_above:
+                    siblings = bcoll.parent.children if bcoll.parent else target_rig.data.collections
+                    bcoll.child_number = siblings[collection_above].child_number + 1
+
+            # Remake missing bones
+            if (custom_bones := [name for name in bones_rotLocScale_constraints_props if name not in target_rig.pose.bones]):
+                bpy.ops.object.mode_set(mode='EDIT')
+                edit_bones = target_rig.data.edit_bones
+
+                for name in custom_bones:
+                    edit_bone = edit_bones.new(name)
+                    for prop, value in edit_bone_properties[name].items():
+                        if prop == "parent":
+                            value = edit_bones[value]
+                        setattr(edit_bone, prop, value)
+                bpy.ops.object.mode_set(mode='OBJECT')
             
-            for name, (rotLocScale, constraints) in bones_rotLocScale_constraints.items():
+            # Remake missing constraints
+            for name, (rotLocScale, constraints, props) in bones_rotLocScale_constraints_props.items():
                 bone = target_rig.pose.bones[name]
+                for bcoll_name in props['collections']:
+                    if bone.name not in (bcoll := all_bcolls[bcoll_name]).bones:
+                        bcoll.assign(bone)
+
                 for attr, value in rotLocScale.items():
                     setattr(bone, attr, value)
 
@@ -77,7 +161,7 @@ class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
                 for type, constraint in constraints:
                     if not constraint:
                         continue
-                    if constraint['name'] in b_constraints:
+                    if constraint['name'] in b_constraints:  # Skip rigify-generated constraint since there may be changes
                         continue
                     new_contraint = b_constraints.new(type)
                     for prop, value in constraint.items():
@@ -92,7 +176,7 @@ class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
                     p_bone["IK_Stretch"] = 0
                 p_bone.bone.bbone_segments = 1
 
-        obj.hide_set(True)
+        metarig.hide_set(True)
         return result
         
 
