@@ -63,7 +63,7 @@ class Base_BoneCollectionsOps:
             if obj.type == 'ARMATURE':
                 for bcoll in obj.data.collections_all:
                     if not bcoll.MixedPie.locked:
-                        if self.exclude(bcoll, sel_bones_names):
+                        if not self.include(bcoll, sel_bones_names):
                             continue
                         self.included.add().set(obj.name, bcoll.name)
 
@@ -87,8 +87,9 @@ class MXD_OT_Armature_BoneCollections_ShowAll(Base_BoneCollectionsOps, Operator)
     add_mode = 'OBJECT'
     text = "Shown collections:"
 
-    def exclude(self, bcoll, sel_bones_names):
-        return bcoll.is_visible
+    def include(self, bcoll, sel_bones_names):
+        """ Only show bone collection if it is not visible """
+        return not bcoll.is_visible
 
     def execute(self, context):
         for i in self.included:
@@ -106,21 +107,25 @@ class MXD_OT_Armature_BoneCollections_Hide(Base_BoneCollectionsOps, Operator):
 
     mode: StringProperty()
 
-    def exclude(self, bcoll, sel_bones_names):
+    def include(self, bcoll, sel_bones_names):
         """
-        If 'SELECTED', exclude bone collection where bone doesn't belong to,
-        else, exclude collections where bone does belong.
+        If 'SELECTED', only hide the collection in which the bone belongs to,
+        else if it's EXCEPT_SELECTED', only hide collections where bone doesn't belong to.
         """
+        if not bcoll.is_visible:  # No need to hide already hidden collections
+            return False
+
         for bone in bcoll.bones:
             if bone.name in sel_bones_names:
                 ret = True
                 break
         else:
             ret = False
+
         if self.mode == 'SELECTED':
-            return not ret
-        else:
             return ret
+        else:
+            return not ret
 
     @classmethod
     def description(cls, context, properties):
@@ -151,12 +156,12 @@ class MXD_OT_Armature_BoneCollections_DeleteBones(Base_BoneCollectionsOps, Opera
     text = "Delete Bone Collections"
     add_mode = 'EDIT_ARMATURE'
 
-    def exclude(self, bcoll, sel_bones_names):
-        """ Exclude bone collections in which selected bones doesn't belong to. """
+    def include(self, bcoll, sel_bones_names):
+        """ Only delete bone collections in which selected bones belongs to. """
         for bone in bcoll.bones:
             if bone.name in sel_bones_names:
-                return False
-        return True
+                return True
+        return False
 
     def execute(self, context):
         edit_armature = False
