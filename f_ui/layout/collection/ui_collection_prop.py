@@ -73,14 +73,6 @@ class MXD_Pref_UI_Collection(PropertyGroup):
         if value < self.minimum_item_per_column:
             self[attr] = self.minimum_item_per_column
             return
-        
-        # # Don't allow to extend if there's no more items unseen
-        # collection_len = self.total_item_count
-        # current = self[attr]
-        # if collection_len and value > current and value > collection_len:
-        #     self[attr] = collection_len
-        #     return
-
         self[attr] = value
 
     def get_auto_item_per_column(self):
@@ -99,10 +91,10 @@ class MXD_Pref_UI_Collection(PropertyGroup):
     minimum_item_per_column: IntProperty(default=5)
     default_item_per_column: IntProperty(default=15)
     max_column_amount: IntProperty(name="Column Amount", get=get_max_column_amount, set=set_max_column_amount)
-    auto_item_per_column: IntProperty(name="Items per Column", get=get_auto_item_per_column, set=set_auto_item_per_column)
+    auto_item_per_column: IntProperty(name="Max Items per Column", get=get_auto_item_per_column, set=set_auto_item_per_column)
     auto_columns: CollectionProperty(type=MXD_Obj_CollT_UI_Collection_Column)
     # Custom
-    custom_item_per_column: IntProperty(name="Items per Column", get=get_custom_item_per_column, set=set_custom_item_per_column)
+    custom_item_per_column: IntProperty(name="Max Items per Column", get=get_custom_item_per_column, set=set_custom_item_per_column)
     column_definition_type: EnumProperty(items=COLUMN_DEFINITION_TYPE, default='CUSTOM')
     custom_columns: CollectionProperty(type=MXD_Obj_CollT_UI_Collection_Column)
     active_column_index: IntProperty()

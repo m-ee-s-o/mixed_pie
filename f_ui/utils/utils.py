@@ -9,7 +9,7 @@ class Attr_Holder:
 
 
 class EventTypeIntercepter:
-    """ Used with layout.draw_again """
+    """ Used with layout.reinitialize """
     def __init__(self, event):
         self._event = event
         self.handled = None

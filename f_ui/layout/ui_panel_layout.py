@@ -52,8 +52,7 @@ class PanelLayout(Layout):
                 if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
                     self.attr_holder.main_box_relocate_cursor = event.cursor
                     self.attr_holder.initial_cursor = self.parent_modal_operator.cursor.copy()
-            elif self.attr_holder.hold == signature:
-                # Since there are many elements that have this mechanism, put this condition so that wherever the mouse is, it would only execute this for one element
+            elif self.attr_holder.hold == signature:   # Since there are many elements that have this mechanism, put this condition so that wherever the mouse is, it would only execute this for one element
                 context.window.cursor_modal_restore()
                 self.attr_holder.hold = None
 
@@ -64,7 +63,6 @@ class PanelLayout(Layout):
             case 'LEFTMOUSE' if event.value == 'RELEASE':
                 self.attr_holder.main_box_relocate_cursor = None
                 self.attr_holder.initial_cursor = None
-                self.attr_holder.hold = None
             case 'ESC' if event.value == 'PRESS':
                 self.parent_modal_operator.cursor = self.attr_holder.initial_cursor
                 self.attr_holder.initial_cursor = None
@@ -78,7 +76,7 @@ class PanelLayout(Layout):
                 self.attr_holder.main_box_relocate_cursor = current_cursor
 
                 event.handled = True
-                self.draw_again = True
+                self.reinitialize = True
 
     def call_modals(self, context, event):
         self.main_box_modal(context, event)
@@ -101,7 +99,7 @@ class PanelLayout(Layout):
 
         box.make()
         super().make_elements()
-    
+
     def draw(self):
         self.main_box.draw()
         super().draw()

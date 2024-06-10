@@ -5,6 +5,7 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from ..ui_panel_layout import PanelLayout
 from ..ui_box import Box
+from ..ui_label import LabelBox
 from ..ui_prop import CollectionProp
 from ...utils.utils_box import make_box, point_inside
 from ....a_utils.utils_func import recur_get_bone_collections, recur_get_bcoll_children
@@ -16,6 +17,7 @@ from ....a_utils.utils_func import recur_get_bone_collections, recur_get_bcoll_c
 class Collection:
     # msgbus = set()
     inherit = PanelLayout.inherit
+    custom_spacing_between_children = 0
 
     def __init__(self, parent, id, collection, draw_item_func):
         # TODO: When active_index changes (e.g., when adding new bone collection), scroll to focus on the new collection if its in last column and not within range
@@ -96,6 +98,7 @@ class Collection:
 
         self.MARGIN = int(self.MARGIN * 0.55)
         self.vMARGIN_TOP_LEFT = Vector((self.MARGIN, -self.MARGIN))
+        self.initial_child_origin = self.origin.copy()  # By default it's origin - vMARGIN_TOP_LEFT
 
         if properties.settings_basis == 'GLOBAL':
             self.item_per_column_path = f"bpy.context.preferences.addons[__package__.partition('.')[0]].preferences.ui_collections.list['{self.collection_identifier}']"  \
@@ -103,9 +106,8 @@ class Collection:
         else:
             self.item_per_column_path = f"{repr(properties.id_data)}.{properties.path_from_id(('auto' if properties.column_definition_type == 'AUTOMATIC' else 'custom')+'_item_per_column')}"
 
-        self.height = self.ITEM_HEIGHT * eval(self.item_per_column_path)                  \
-                      + self.SPACE_BETWEEN_ITEMS * (eval(self.item_per_column_path) - 1)  \
-                      + self.MARGIN * 2
+        settings_basis = pref if properties.settings_basis == 'GLOBAL' else properties
+        self.settings_basis = settings_basis
 
         self.collection_columns = self.children
         self.resize_columns = {}
@@ -118,14 +120,15 @@ class Collection:
             colls = collection
             search_src = collection
 
-        if not colls:
-            return
-        
-        def set_collection_columns(settings_basis):
+        if settings_basis.column_definition_type == 'CUSTOM':
+            if "Uncategorized" not in settings_basis.custom_columns:
+                settings_basis.custom_columns.add().name = "Uncategorized"
+            settings_basis.custom_columns["Uncategorized"].item_count = 0
+
+        if colls:
+            # region: Set Collection Columns
             if settings_basis.column_definition_type == 'CUSTOM':
                 uncategorized = {coll: None for coll in colls}
-                if "Uncategorized" not in settings_basis.custom_columns:
-                    settings_basis.custom_columns.add().name = "Uncategorized"
 
                 all_items = set()
                 all_columns = {}
@@ -164,14 +167,15 @@ class Collection:
                         continue
                     CollectionColumn(self, items, properties)
             else:
-                max_columns = max(1, ceil(len(colls) / settings_basis.auto_item_per_column))  # Should be at least 1
+                self.all_items_count = len(colls)
+                max_columns = max(1, ceil(self.all_items_count / settings_basis.auto_item_per_column))  # Should be at least 1
                 max_column_amount = settings_basis.max_column_amount if settings_basis.max_column_amount <= max_columns else max_columns
 
                 for i in range(max_column_amount):
                     if i == max_column_amount - 1:
-                        items_amount = len(colls) - settings_basis.auto_item_per_column * i
+                        items_amount = self.all_items_count - settings_basis.auto_item_per_column * i
                     else:
-                        items_amount = min(len(colls), settings_basis.auto_item_per_column)
+                        items_amount = min(self.all_items_count, settings_basis.auto_item_per_column)
 
                     items = []
                     start_index = i * settings_basis.auto_item_per_column
@@ -180,11 +184,18 @@ class Collection:
                         items.append(colls[j])
 
                     CollectionColumn(self, items, settings_basis.auto_columns[i])
+            # endregion
 
-        set_collection_columns(pref if properties.settings_basis == 'GLOBAL' else properties)
+            self.longest_column = max(self.collection_columns, key=lambda column: len(column.collection_items))
+            bottommost = self.longest_column.collection_items[-1]
+            self.height = max(self.origin.y - bottommost.origin.y + bottommost.height + self.longest_column.MARGIN, self.height)
 
-        self.width = sum(column.width for column in self.collection_columns) or (300 * self.ui_scale)
+            for col in self.collection_columns:
+                col.height = self.height
 
+        self.width = sum(column.width for column in self.collection_columns) or (300 * self.ui_scale)  # or some_default_width
+
+        # The following are still needed even if there are no columns
         self.resize_ui_inactive = []
         self.resize_color = (0.5, 0.5, 0.5, 1)
 
@@ -195,6 +206,9 @@ class Collection:
             bottom = self.corners.bottom_right.copy()
             bottom.x -= (self.width / 2) - (self.resize_ui_length / 2); self.resize_ui_inactive.append(bottom.copy())
             bottom.x -= self.resize_ui_length; self.resize_ui_inactive.append(bottom)
+        
+        if not hasattr(self.attr_holder, "collection_resize_column_id_indices"):
+            self.attr_holder.collection_resize_column_id_indices = set()
 
     def modal(self, context, event):
         if event.type == 'RIGHTMOUSE' and event.value == 'PRESS'  \
@@ -205,8 +219,8 @@ class Collection:
             event.handled = True
             return
 
-        # if self.collection_columns:
-        self.modal_resize_y(context, event)
+        if self.collection_columns:
+            self.modal_resize_y(context, event)
 
     def modal_resize_y(self, context, event):
         signature = (self.id, "y")
@@ -226,6 +240,7 @@ class Collection:
                     setattr(self.attr_holder, f"{self.id}_resizing_y", True)
                     self.resize_color = (0.8, 0.8, 0.8, 1)
                     self.attr_holder.initial_item_per_column = eval(self.item_per_column_path)
+
                 event.handled = True
 
             elif self.attr_holder.hold == signature:
@@ -241,19 +256,39 @@ class Collection:
         match event.type:
             case 'LEFTMOUSE' if event.value == 'RELEASE':
                 setattr(self.attr_holder, f"{self.id}_resizing_y", False)
-                self.attr_holder.hold = None
                 event.handled = True
+
             case 'ESC' if event.value == 'PRESS':
                 setattr(eval(parent), attr, self.attr_holder.initial_item_per_column)
                 setattr(self.attr_holder, f"{self.id}_resizing_y", False)
                 event.handled = True
+
             case 'MOUSEMOVE':
-                increment = self.ITEM_HEIGHT + self.SPACE_BETWEEN_ITEMS
-                basis = self.origin.y - self.MARGIN
-                dy = event.cursor.y - basis
-                if dy < 0:  # Cursor is below self.origin.y. Would still resize even if the cursor is far above.
-                    setattr(eval(parent), attr, int(abs(dy / increment)))
                 event.handled = True
+                basis = self.origin.y - self.height
+
+                dy = basis - event.cursor.y
+                increment = self.ITEM_HEIGHT + self.SPACE_BETWEEN_ITEMS
+
+                if abs(dy) < increment:
+                    return
+                
+                new_item_per_column = eval(self.item_per_column_path) + int(dy / increment)
+                current_max_item_count = max(col.properties.item_count for col in self.collection_columns)
+
+                if dy < 0:  # Resizing to upwards (decreasing)
+                    if eval(self.item_per_column_path) > current_max_item_count:  # By setting it in the properties panel (right-click)
+                        # Cut it short to suite current resizing
+                        setattr(eval(parent), attr, current_max_item_count)
+                
+                max_item_count = self.all_items_count if self.settings_basis.column_definition_type == 'AUTOMATIC' else current_max_item_count
+
+                if new_item_per_column > max_item_count:
+                    # This will prevent oversizing the column if there's no more items. However, oversizing can still be done in the properties panel if wanted.
+                    setattr(eval(parent), attr, max_item_count)  # Snap property to max_item_count
+                    return
+
+                setattr(eval(parent), attr, new_item_per_column)
 
     def make(self):
         Box.make(self)
@@ -275,18 +310,13 @@ class Collection:
 
 class CollectionColumn:
     inherit = PanelLayout.inherit
-    auto_adjust_children = True
+    custom_spacing_between_children = 0
 
     def __init__(self, parent, items, properties=None):
         column_index = len(parent.collection_columns)
         if not properties:
             properties = parent.properties.columns[column_index]
         self.properties = properties
-
-        if column_index == 0:
-            self.no_spacing = True
-        else:
-            self.custom_spacing = 0
 
         Box.__init__(self, parent, 0, parent.height, color=(0.05, 0.05, 0.05, 1))
 
@@ -295,45 +325,55 @@ class CollectionColumn:
         properties.item_per_column = eval(parent.item_per_column_path)
         self.width = properties.width * self.ui_scale
 
+        if parent.settings_basis.column_definition_type == 'CUSTOM':
+            pre, alignment = self.root.text_alignment.get(return_self=True)
+            alignment.center = True
+            category_label = PanelLayout.label(self, properties.name)
+            category_label.text_size *= 1.05
+            category_label.label_color = (0.757, 0.855, 1, 1)
+            category_label.width = self.width - (self.MARGIN * 2)
+            category_label.height = parent.ITEM_HEIGHT
+            alignment(pre)
+            # Make some space between label and first item
+            self.current_element = self
+            self.initial_child_origin = category_label.origin.copy()
+            self.initial_child_origin.y -= category_label.height + self.MARGIN
+
         self.make_collection_items(parent, items)
         self.make_scroll_bar()
-        self.make_resize_ui()
-
-    def make_collection_items(self, parent, items):
-        self.collection_items = []
-
-        for i in range(min(self.properties.item_per_column, len(items))):
-            i += self.properties.start_index
-            item = CollectionItem(self, self.width - (self.MARGIN * 2), parent.ITEM_HEIGHT,
-                                  draw_func=parent.draw_item_func, collection=parent.collection, item=items[i])
-            self.collection_items.append(item)
-
-    def make_resize_ui(self):
         self.resize_ui_inactive = []
         self.resize_color = (0.5, 0.5, 0.5, 1)
 
-        Box.make(self)  # Make self.corners
+    def make_collection_items(self, parent, items):
+        self.collection_items = []
+        max = min(self.properties.item_per_column, len(items))
 
-        if not hasattr(self.attr_holder, "collection_resize_column_id_indices"):
-            self.attr_holder.collection_resize_column_id_indices = {}
-
-        resize = (self.properties.column_index in self.attr_holder.collection_resize_column_id_indices)
-        if not resize:
-            # Resize indicator UI
-            right = self.corners.top_right.copy()
-            right.y -= (self.height / 2) - (self.parent.resize_ui_length / 2); self.resize_ui_inactive.append(right.copy())
-            right.y -= self.parent.resize_ui_length; self.resize_ui_inactive.append(right)
+        for i in range(max):
+            i += self.properties.start_index
+            item = CollectionItem(self, self.width - (self.MARGIN * 2), parent.ITEM_HEIGHT,
+                                  draw_func=parent.draw_item_func, collection=parent.collection, item=items[i])
+            if i != max - 1:
+                item.origin.y -= parent.SPACE_BETWEEN_ITEMS
+            self.collection_items.append(item)
 
     def make_scroll_bar(self):
-        if self.properties.item_per_column >= self.properties.item_count or not self.children:  # If there are no items left to scroll
+        if self.properties.item_per_column >= self.properties.item_count or not self.collection_items:  # If there are no items left to scroll
             return
 
         self.flow(horizontal=True)
-        self.current_element = self.children[0]
+        self.current_element = self.collection_items[0]
+        self.custom_spacing_between_children = None
         self.scroll_bar = CollectionScrollBar(self)
-        self.width += self.parent.SCROLL_BAR_WIDTH + self.MARGIN
+        self.custom_spacing_between_children = 0
+        increment = self.parent.SCROLL_BAR_WIDTH + (self.MARGIN * 1.25)
+        self.width += increment
+
+        category_name = self.children[0]
+        if isinstance(category_name, LabelBox):
+            category_name.width += increment
 
     def modal(self, context, event):
+        Box.make(self)
         if hasattr(self, "scroll_bar"):
             self.modal_scoll(context, event)
         self.modal_resize_x(context, event)
@@ -343,27 +383,28 @@ class CollectionColumn:
         if self.attr_holder.hold and self.attr_holder.hold != signature:
             return
 
-        match event.type:
-            case 'WHEELUPMOUSE' if Box.point_inside(self, event):
-                self.properties.start_index -= 1
-                self.root.draw_again = True
-                event.handled = True
-                return
-            case 'WHEELDOWNMOUSE' if Box.point_inside(self, event):
-                self.properties.start_index += 1
-                self.root.draw_again = True
-                event.handled = True
-                return
+        if Box.point_inside(self, event):
+            match event.type:
+                case 'WHEELUPMOUSE':
+                    self.properties.start_index -= 1
+                    self.root.reinitialize = True
+                    event.handled = True
+                    return
+                case 'WHEELDOWNMOUSE':
+                    self.properties.start_index += 1
+                    self.root.reinitialize = True
+                    event.handled = True
+                    return
 
         cursor = event.cursor
-        basis = getattr(self.attr_holder, f"{self.parent.id}_scroll_basis", False)
+        basis = getattr(self.attr_holder, f"{(self.parent.id, self.properties.column_index)}_scroll_basis", False)
 
         if not basis:
             if self.scroll_bar.scroll.point_inside(cursor):
                 self.attr_holder.hold = signature
                 self.scroll_bar.scroll.color = (0.5, 0.5, 0.5, 1)
                 if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-                    setattr(self.attr_holder, f"{self.parent.id}_scroll_basis", cursor.y)
+                    setattr(self.attr_holder, f"{(self.parent.id, self.properties.column_index)}_scroll_basis", cursor.y)
                     self.attr_holder.collection_scroll_prior_start_index = self.properties.start_index
             elif self.attr_holder.hold == signature:
                 self.attr_holder.hold = None
@@ -374,10 +415,9 @@ class CollectionColumn:
 
         match event.type:
             case 'LEFTMOUSE' if event.value == 'RELEASE':
-                    delattr(self.attr_holder, f"{self.parent.id}_scroll_basis")
-                    # setattr(self.attr_holder, f"{self.parent.id}_scroll_basis", None)
+                    delattr(self.attr_holder, f"{(self.parent.id, self.properties.column_index)}_scroll_basis")
             case 'MOUSEMOVE':
-                if (basis := getattr(self.attr_holder, f"{self.parent.id}_scroll_basis", False)):
+                if (basis := getattr(self.attr_holder, f"{(self.parent.id, self.properties.column_index)}_scroll_basis", False)):
                     steps = (cursor.y - basis) / self.scroll_bar.scroll_increment
                     self.properties.start_index = self.attr_holder.collection_scroll_prior_start_index - int(steps)
 
@@ -387,7 +427,7 @@ class CollectionColumn:
             return
 
         cursor = event.cursor
-        x_resize_click = getattr(self.attr_holder, f"{self.parent.id}_x_resize_click", None)
+        x_resize_click = getattr(self.attr_holder, f"{signature}_x_resize_click", None)
 
         if not x_resize_click:
             # Right resize UI
@@ -399,108 +439,83 @@ class CollectionColumn:
                 if context.object.type == 'ARMATURE':  # Cursor would jitter for modes like Weight Paint (it's set for the mode)
                     context.window.cursor_modal_set('MOVE_X')
                 self.attr_holder.collection_resize_column_id_indices = {
-                    (self.parent.id, column.properties.column_index) for column in ((self, ) if event.ctrl else {*self.parent.collection_columns})
+                    (self.parent.id, column.properties.column_index) for column in ((self, ) if event.ctrl else self.parent.collection_columns)
                 }
                 if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
                     self.resize_color = (0.8, 0.8, 0.8, 1)
-                    setattr(self.attr_holder, f"{self.parent.id}_x_resize_click", cursor.x)
+                    setattr(self.attr_holder, f"{signature}_x_resize_click", cursor.x)
                     self.attr_holder.collection_resize_column_initial_prop_widths = {
                         index: self.parent.collection_columns[index].properties.width for _, index in self.attr_holder.collection_resize_column_id_indices
                     }
             elif self.attr_holder.hold == signature:
-                self.attr_holder.collection_resize_column_id_indices = {}
+                self.attr_holder.collection_resize_column_id_indices = set()
                 context.window.cursor_modal_restore()
                 self.attr_holder.hold = None
 
         if not x_resize_click:
             return
-        self.resize_color = (0.8, 0.8, 0.8, 1)
 
         match event.type:
             case 'LEFTMOUSE' if event.value == 'RELEASE':
-                setattr(self.attr_holder, f"{self.parent.id}_x_resize_click", None)
+                setattr(self.attr_holder, f"{signature}_x_resize_click", None)
                 self.attr_holder.collection_resize_column_initial_prop_widths = None
             case 'ESC' if event.value == 'PRESS':
                 for index, width in self.attr_holder.collection_resize_column_initial_prop_widths.items():
                     column = self.parent.collection_columns[index]
                     column.properties.width = width
-                setattr(self.attr_holder, f"{self.parent.id}_x_resize_click", None)
+                setattr(self.attr_holder, f"{signature}_x_resize_click", None)
                 self.attr_holder.collection_resize_column_initial_prop_widths = None
                 event.handled = True
             case 'MOUSEMOVE':
                 cursor_dx = cursor.x - x_resize_click
                 initial_prop_widths = self.attr_holder.collection_resize_column_initial_prop_widths
-                prior = self.properties.width
                 self.properties.width = initial_prop_widths[self.properties.column_index] + int(cursor_dx / self.ui_scale)
                 # /ui_scale since cursor distance should be already scaled and properties.width shouldn't be scaled
 
-                self.width = self.properties.width * self.ui_scale  # Immediately take effect in the next draw (after this modal)
-                if hasattr(self, "scroll_bar"):
-                    self.width += self.parent.SCROLL_BAR_WIDTH + self.MARGIN
-                if prior == self.properties.width:
-                    return
-
                 diff_prop_width = self.properties.width - initial_prop_widths[self.properties.column_index]
-                total_width = self.width
 
                 id_indices = set(self.attr_holder.collection_resize_column_id_indices)
-                id_indices.remove((self.parent.id, self.properties.column_index))
+                id_indices.remove(signature)
                 for _, index in id_indices:
                     column = self.parent.collection_columns[index]
                     column.properties.width = initial_prop_widths[column.properties.column_index] + diff_prop_width
                     column.width = column.properties.width * self.ui_scale
                     if hasattr(column, "scroll_bar"):
                         column.width += self.parent.SCROLL_BAR_WIDTH + self.MARGIN
-                    total_width += column.width
-                diff_total_width = total_width - self.parent.width
-                self.parent.width = total_width
 
-                self.resize_clean_up()
-
-                children = set(self.root.recur_get_all_children(self.parent))
-                for element in self.root.elements:
-                    if element not in children:
-                        if self.origin.y > element.origin.y > self.origin.y - self.height           \
-                                or self.origin.y > element.origin.y - element.height > self.origin.y - self.height:  # If element's head or toe is inside
-                            element.origin.x += diff_total_width
-
-    def resize_clean_up(self):
-        columns = self.parent.collection_columns
-        for i, column in enumerate(columns):
-            child_width = column.width - (column.MARGIN * 2)
-            if (scroll_bar := getattr(column, "scroll_bar", None)):
-                # If there is a scroll bar, a column's width at this point already has space for the bar...
-                child_width -= self.parent.SCROLL_BAR_WIDTH + column.MARGIN  # ...so decrease it.
-                scroll_bar.case.origin.x = column.origin.x + child_width + (column.MARGIN * 2)
-                scroll_bar.scroll.origin.x = scroll_bar.case.origin.x
-            for child in column.collection_items:
-                if isinstance(child, CollectionItem):
-                    child.width = child_width
-            if i != 0:
-                previous = columns[i - 1]
-                new_origin_x = previous.origin.x + previous.width
-                self.root.recur_offset_children_origin(column, offset_x=new_origin_x - column.origin.x)
-                column.origin.x = new_origin_x
+                self.root.reinitialize = True
+                event.handled = True
 
     def make(self):
         Box.make(self)
 
+        if (self.parent.id, self.properties.column_index) not in self.attr_holder.collection_resize_column_id_indices:
+            # Resize indicator UI
+            right = self.corners.top_right.copy()
+            right.y -= (self.height / 2) - (self.parent.resize_ui_length / 2); self.resize_ui_inactive.append(right.copy())
+            right.y -= self.parent.resize_ui_length; self.resize_ui_inactive.append(right)
+
     def draw(self):
         # Box.make(self)
+        # self.color = (1, 1, 1, 1)
         # Box.draw(self)
+
+        if getattr(self.attr_holder, f"{(self.parent.id, self.properties.column_index)}_x_resize_click", None):
+            self.resize_color = (0.8, 0.8, 0.8, 1)
 
         shader = gpu.shader.from_builtin('UNIFORM_COLOR')
         shader.uniform_float("color", self.resize_color)
-        resize = ((self.parent.id, self.properties.column_index) in self.attr_holder.collection_resize_column_id_indices)
-        if resize:
+        resizing = (self.parent.id, self.properties.column_index) in self.attr_holder.collection_resize_column_id_indices
+
+        if resizing:
             gpu.state.line_width_set(2)
-            
+
         if (len(self.parent.collection_columns) > 1
                 and self is not self.parent.collection_columns[-1]  # Not last, since right border line has rounded corners
-                or resize):  # Division line
+                or resizing):  # Division line
             batch_for_shader(shader, 'LINES', {'pos': (self.corners.top_right, self.corners.bottom_right)}).draw(shader)
 
-        if not resize:
+        if not resizing:
             gpu.state.line_width_set(2)
             batch_for_shader(shader, 'LINES', {'pos': self.resize_ui_inactive}).draw(shader)
         gpu.state.line_width_set(1)
@@ -508,8 +523,12 @@ class CollectionColumn:
 
 class CollectionScrollBar:
     def __init__(self, column):
+        first = column.collection_items[0]
+        last = column.collection_items[-1]
+        height = first.origin.y - last.origin.y + last.height
         width = column.parent.SCROLL_BAR_WIDTH
-        self.case = Box(column, width, column.height - (column.MARGIN * 2), False, color=(0.333, 0.333, 0.333, 1))
+
+        self.case = Box(column, width, height, False, color=(0.333, 0.333, 0.333, 1))
         self.scroll = Box(column, width, 0, color=(0.333, 0.333, 0.333, 1))
 
         self.scroll_increment = self.case.height / column.properties.item_count
@@ -521,7 +540,6 @@ class CollectionScrollBar:
 
 class CollectionItem:
     inherit = PanelLayout.inherit
-    auto_adjust_children = True
     adjustable = True
 
     def __init__(self, *args, **kwargs):
@@ -529,9 +547,8 @@ class CollectionItem:
         self.draw_func = kwargs.pop("draw_func")
         self.item = kwargs.pop("item")
         self.active = (self.collection.active == self.item)
-        parent = args[0]
-        self.custom_spacing = parent.parent.SPACE_BETWEEN_ITEMS
         Box.__init__(self, *args, **kwargs)
+
         self.flow(horizontal=True)
 
         def recur_how_many_parents(child, cnt=0):
@@ -613,8 +630,6 @@ class CollectionItem:
             self.inside = False
 
     def make(self):
-        # TODO: Make notifiers so that there would be no needless adjusting if not resized
-        PanelLayout.adjust(self)  # Column may have been resized, readjust
         Box.make(self)
         inside = getattr(self, "inside", None)
         active = self.active

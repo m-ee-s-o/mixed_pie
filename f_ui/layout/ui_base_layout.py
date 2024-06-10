@@ -21,11 +21,32 @@ class Layout:
                 self.horizontal = False
     
     class TextAlignment:
+        options = {"left", "center", "right"}
+
         def __init__(self):
-            self.center = 'CENTER'
-            self.left = 'LEFT'
-            self.right = 'RIGHT'
-            self.alignment = self.left
+            super().__setattr__("left", True)
+            super().__setattr__("center", False)
+            super().__setattr__("right", False)
+
+        def __setattr__(self, name, value):
+            if name in self.options:
+                for option in self.options:
+                    if option == name:
+                        continue
+                    super().__setattr__(option, False)
+            if value:
+                super().__setattr__(name, value)
+            else:
+                super().__setattr__("left", True)  # Make left at least True
+
+        def __call__(self, option_in_caps):
+            setattr(self, option_in_caps.lower(), True)
+        
+        def get(self, return_self=False):
+            for option in self.options:
+                if getattr(self, option):
+                    active = option.upper()
+                    return active if not return_self else (active, self)
 
     def __init__(self, operator, origin):
         self.parent_modal_operator = operator
@@ -39,7 +60,7 @@ class Layout:
 
         self.elements = []
         self.children = []
-        self.draw_again = False
+        self.reinitialize = False
         self.hold = None
 
         self.bevel_radius = self.DEFAULT_BEVEL_RADIUS
@@ -75,17 +96,19 @@ class Layout:
 
         current_element = getattr(parent, "current_element", parent)
 
-        if getattr(self, "no_spacing", False):
-            self.origin = current_element.origin.copy()
-        elif getattr(self, "custom_spacing", None) is not None:
-            self.origin = current_element.origin.copy()
-            if parent.children:
+        if (custom_spacing := getattr(parent, "custom_spacing_between_children", None)) is not None:
+            if current_element != parent:
+                self.origin = current_element.origin.copy()
                 if parent.flow.horizontal:
-                    self.origin.x += current_element.width + self.custom_spacing
+                    self.origin.x += current_element.width + custom_spacing
                 else:
-                    self.origin.y -= current_element.height + self.custom_spacing
+                    self.origin.y -= current_element.height + custom_spacing
+
+            elif (initial_child_origin := getattr(parent, "initial_child_origin", None)):
+                self.origin = initial_child_origin
+
             else:
-                self.origin += parent.vMARGIN_TOP_LEFT
+                self.origin = current_element.origin + self.vMARGIN_TOP_LEFT
         else:
             if not parent.children:
                 self.origin = parent.origin.copy()

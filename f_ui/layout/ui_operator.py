@@ -69,8 +69,10 @@ class UI_Operator:
             event.handled = True
 
     def make(self):
+        # Modal's execution of the following will be skipped if there's hold, so make sure to put these here.
+        # Also, PanelLayout.adjust may change properties after modal's make() like in CollectionItem
         PanelLayout.center(self, x=getattr(self, "center_x", False), y=getattr(self, "center_y", False))
-        Box.make(self)  # Remake; PanelLayout.adjust may change properties after modal's make() like in CollectionItem
+        Box.make(self)
 
     def draw(self):
         if self.emboss:

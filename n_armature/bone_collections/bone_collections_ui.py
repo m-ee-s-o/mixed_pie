@@ -44,7 +44,7 @@ class MXD_OT_Armature_BoneCollectionPanel(MXD_OT_Utils_Panel, Operator):
             down.snap_to(up, 'BOTTOM')
 
             layout.current_element = ui_coll
-            layout.text_alignment = layout.text_alignment.center
+            layout.text_alignment.center = True
             with layout.HorizontalSpacingManager() as hsm:
                 hsm.operator("armature.collection_assign", label="Assign")
                 hsm.operator("armature.collection_unassign", label="Remove")
@@ -117,114 +117,115 @@ class MXD_PT_BoneCollectionProperties(Panel):
         layout.label(text="Settings Basis")
         layout.prop(current_properties, "settings_basis", expand=True)
 
-        def draw_settings(settings_basis, path):
-            box = layout.box()
-            col = box.column(align=True)
-            col.label(text="Column Definition Type")
-            col.separator(factor=0.5)
-            col.row().prop(settings_basis, "column_definition_type", expand=True)
-
-            if settings_basis.column_definition_type == 'AUTOMATIC':
-                col = box.column(align=True)
-                col.prop(settings_basis, "max_column_amount")
-                col.prop(settings_basis, "auto_item_per_column")
-            else:
-                col = box.column(align=True)
-                col.label(text="Columns")
-                col.separator(factor=0.5)
-                row = col.row()
-                row.template_list("MXD_UL_Column", "", settings_basis, "custom_columns", settings_basis, "active_column_index", sort_lock=True)
-                index_path = path + ".active_column_index"
-                columns_path = path + ".custom_columns"
-                custom_columns = settings_basis.custom_columns
-                active_column_index = settings_basis.active_column_index
-                active_column = custom_columns[active_column_index]
-
-                col = row.column(align=True)
-                op = col.operator("utils.modify_collection_item", icon='ADD')
-                op.operation = 'ADD'
-                op.collection = columns_path
-                op.index = active_column_index
-
-                if len(custom_columns) > 0:
-                    row = col.row()
-                    row.enabled = (active_column.name != "Uncategorized" or
-                                len([col.name for col in custom_columns if col.name == "Uncategorized"]) > 1)  # If there are many "Uncategorized", enable remove
-                    op = row.operator("utils.modify_collection_item", icon='REMOVE')
-                    op.operation = 'REMOVE'
-                    op.collection = columns_path
-                    op.index = active_column_index
-                    op.index_path = index_path
-
-                if len(custom_columns) > 1:
-                    col.separator()
-
-                    op = col.operator("utils.modify_collection_item", icon='TRIA_UP')
-                    op.operation = 'MOVE_UP'
-                    op.collection = columns_path
-                    op.index = active_column_index
-                    op.index_path = index_path
-
-                    op = col.operator("utils.modify_collection_item", icon='TRIA_DOWN')
-                    op.operation = 'MOVE_DOWN'
-                    op.collection = columns_path
-                    op.index = active_column_index
-                    op.index_path = index_path
-
-                if not custom_columns:
-                    return
-                if active_column_index > len(custom_columns) - 1:
-                    return
-                if active_column.name == "Uncategorized":
-                    return
-
-                col = box.column(align=True)
-                col.label(text="Items")
-                col.separator(factor=0.5)
-                row = col.row()
-                row.template_list("MXD_UL_Item", "", active_column, "items", active_column, "active_item_index", sort_lock=True)
-                index_path = path + f"[{active_column_index}].active_item_index"
-                items_path = path + f"[{active_column_index}].items"
-                active_item_index = active_column.active_item_index
-
-                col = row.column(align=True)
-                op = col.operator("utils.modify_collection_item", icon='ADD')
-                op.operation = 'ADD'
-                op.collection = items_path
-                op.index = active_item_index
-
-                if len(active_column.items) > 0:
-                    op = col.operator("utils.modify_collection_item", icon='REMOVE')
-                    op.operation = 'REMOVE'
-                    op.collection = items_path
-                    op.index = active_item_index
-                    op.index_path = index_path
-
-                if len(active_column.items) > 1:
-                    col.separator()
-
-                    op = col.operator("utils.modify_collection_item", icon='TRIA_UP')
-                    op.operation = 'MOVE_UP'
-                    op.collection = items_path
-                    op.index = active_item_index
-                    op.index_path = index_path
-
-                    op = col.operator("utils.modify_collection_item", icon='TRIA_DOWN')
-                    op.operation = 'MOVE_DOWN'
-                    op.collection = items_path
-                    op.index = active_item_index
-                    op.index_path = index_path
-
-                col.separator()
-                op = col.operator("bone_collections.select_items_for_column", icon='COLLECTION_NEW')
-                op.collection = items_path
-
         if current_properties.settings_basis == 'LOCAL':
             path = repr(current_properties)
-            draw_settings(current_properties, path)
+            settings_basis = current_properties
         else:
-            path = f"bpy.context.preferences.addons[__package__.partition('.')[0]].preferences.ui_collections.list[{self.current_collection_identifier}]"
-            draw_settings(pref.ui_collections.list[self.current_collection_identifier], path)
+            path = f"bpy.context.preferences.addons[__package__.partition('.')[0]].preferences.ui_collections.list['{self.current_collection_identifier}']"
+            settings_basis = pref.ui_collections.list[self.current_collection_identifier]
+
+        box = layout.box()
+        col = box.column(align=True)
+        col.label(text="Column Definition Type")
+        col.separator(factor=0.5)
+        col.row().prop(settings_basis, "column_definition_type", expand=True)
+
+        if settings_basis.column_definition_type == 'AUTOMATIC':
+            col = box.column(align=True)
+            col.prop(settings_basis, "max_column_amount")
+            col.prop(settings_basis, "auto_item_per_column")
+        else:
+            box.prop(settings_basis, "custom_item_per_column")
+
+            col = box.column(align=True)
+            col.label(text="Columns")
+            col.separator(factor=0.5)
+            row = col.row()
+            row.template_list("MXD_UL_Column", "", settings_basis, "custom_columns", settings_basis, "active_column_index", sort_lock=True)
+            index_path = path + ".active_column_index"
+            columns_path = path + ".custom_columns"
+            custom_columns = settings_basis.custom_columns
+            active_column_index = settings_basis.active_column_index
+            active_column = custom_columns[active_column_index]
+
+            col = row.column(align=True)
+            op = col.operator("utils.modify_collection_item", icon='ADD')
+            op.operation = 'ADD'
+            op.collection = columns_path
+            op.index = active_column_index
+
+            if len(custom_columns) > 0:
+                row = col.row()
+                row.enabled = (active_column.name != "Uncategorized" or
+                            len([col.name for col in custom_columns if col.name == "Uncategorized"]) > 1)  # If there are many "Uncategorized", enable remove
+                op = row.operator("utils.modify_collection_item", icon='REMOVE')
+                op.operation = 'REMOVE'
+                op.collection = columns_path
+                op.index = active_column_index
+                op.index_path = index_path
+
+            if len(custom_columns) > 1:
+                col.separator()
+
+                op = col.operator("utils.modify_collection_item", icon='TRIA_UP')
+                op.operation = 'MOVE_UP'
+                op.collection = columns_path
+                op.index = active_column_index
+                op.index_path = index_path
+
+                op = col.operator("utils.modify_collection_item", icon='TRIA_DOWN')
+                op.operation = 'MOVE_DOWN'
+                op.collection = columns_path
+                op.index = active_column_index
+                op.index_path = index_path
+
+            if not custom_columns:
+                return
+            if active_column_index > len(custom_columns) - 1:
+                return
+            if active_column.name == "Uncategorized":
+                return
+
+            col = box.column(align=True)
+            col.label(text="Items")
+            col.separator(factor=0.5)
+            row = col.row()
+            row.template_list("MXD_UL_Item", "", active_column, "items", active_column, "active_item_index", sort_lock=True)
+            index_path = path + f"[{active_column_index}].active_item_index"
+            items_path = path + f"[{active_column_index}].items"
+            active_item_index = active_column.active_item_index
+
+            col = row.column(align=True)
+            op = col.operator("utils.modify_collection_item", icon='ADD')
+            op.operation = 'ADD'
+            op.collection = items_path
+            op.index = active_item_index
+
+            if len(active_column.items) > 0:
+                op = col.operator("utils.modify_collection_item", icon='REMOVE')
+                op.operation = 'REMOVE'
+                op.collection = items_path
+                op.index = active_item_index
+                op.index_path = index_path
+
+            if len(active_column.items) > 1:
+                col.separator()
+
+                op = col.operator("utils.modify_collection_item", icon='TRIA_UP')
+                op.operation = 'MOVE_UP'
+                op.collection = items_path
+                op.index = active_item_index
+                op.index_path = index_path
+
+                op = col.operator("utils.modify_collection_item", icon='TRIA_DOWN')
+                op.operation = 'MOVE_DOWN'
+                op.collection = items_path
+                op.index = active_item_index
+                op.index_path = index_path
+
+            col.separator()
+            op = col.operator("bone_collections.select_items_for_column", icon='COLLECTION_NEW')
+            op.collection = items_path
 
 
 classes = (

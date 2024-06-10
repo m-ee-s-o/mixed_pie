@@ -47,7 +47,7 @@ class MXD_OT_Utils_Panel:
 
         layout.call_modals(context, event)
 
-        if layout.draw_again:
+        if layout.reinitialize:
             layout = PanelLayout(self, self.cursor)
             self.draw_structure(context, event, layout)
             layout.call_modals(context, event)

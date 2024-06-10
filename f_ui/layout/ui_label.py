@@ -1,3 +1,4 @@
+# import re
 from mathutils import Vector
 import blf
 from .ui_panel_layout import PanelLayout
@@ -12,7 +13,8 @@ class LabelBox:
         self.text = str(text)
         Box.__init__(self, parent, 0, 0, fill=False)
         self.text_size = self.root.text_size
-        self.alignment = self.root.text_alignment
+        self.center = self.root.text_alignment.center
+        self.label_color = (1, 1, 1, 1)
 
         # Set minimum size
         blf.size(0, self.text_size * self.ui_scale)
@@ -40,6 +42,8 @@ class LabelBox:
         origin = self.origin.copy()
         origin.y -= self.height  # Origin of self (element) is at top left, blf's is at bottom left
         text = self.text
+        if self.height > self.label_dimensions.y:
+            origin.y += (self.height / 2) - (self.label_dimensions.y / 2)
 
         # Check if text fits, and if it is not, truncate
         if self.label_dimensions.x > self.width:
@@ -50,10 +54,27 @@ class LabelBox:
             else:
                 text = ""
 
-        if self.alignment == 'CENTER':
+        if self.center:
             origin.x += (self.width / 2) - (self.get_label_dimensions(text).x / 2)
+
         # print(self.text)
         blf.position(0, *origin, 0)
         blf.size(0, self.text_size * self.ui_scale)
-        # TODO: Parse color
-        blf.draw(0, text)
+
+        # # TODO: Parse color
+        # re.findall("<1, 1, 1, 1>")
+        # code = "<c"
+        # while True:
+        #     if (index := text.find(code)) == -1:
+        #         break
+        #     if code == "<c":
+        #         if (close_index := text.find(">", index + 2)
+        #         code = "</c>"
+        #     text.find()
+
+        if self.color != (1, 1, 1, 1):
+            blf.color(0, *self.label_color)
+            blf.draw(0, text)
+            blf.color(0, 1, 1, 1, 1)
+        else:
+            blf.draw(0, text)
