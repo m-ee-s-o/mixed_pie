@@ -1,5 +1,5 @@
 import bpy
-from bpy.types import Menu#, IMAGE_HT_header
+from bpy.types import Menu
 
 
 class MXD_MT_PIE_PaintTexture_BrushFalloff(Menu):
@@ -83,7 +83,7 @@ class MXD_MT_PIE_PaintTexture(Menu):
             pie.operator("wm.context_toggle", depress=(affect_alpha),
                          icon='CHECKBOX_HLT' if affect_alpha else 'CHECKBOX_DEHLT',
                          text="Affect Alpha").data_path = "tool_settings.image_paint.brush.use_alpha"
-        else:
+        else:  # else 'IMAGE_EDITOR'
             pie.separator()   # Left
 
         pie.separator()  # Right
@@ -119,19 +119,11 @@ classes = (
 )
 
 
-# def reload_image(self, context):
-#     self.layout.operator("image.reload")
-
-
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-
-    # IMAGE_HT_header.append(reload_image)
 
 
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
-    
-    # IMAGE_HT_header.remove(reload_image)

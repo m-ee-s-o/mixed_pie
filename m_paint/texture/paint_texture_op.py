@@ -33,6 +33,9 @@ class MXD_OT_BrushFalloff(Operator):
                 brush = context.tool_settings.weight_paint.brush
             case 'SCULPT':
                 brush = context.tool_settings.sculpt.brush
+
+        brush.curve_preset = self.falloff
+
         if event.shift:
             match self.falloff:
                 case 'SMOOTH':
@@ -45,19 +48,8 @@ class MXD_OT_BrushFalloff(Operator):
                     self.report({'INFO'}, "Sharper")
                 case 'CUSTOM':
                     brush.curve_preset = self.falloff
-                    bpy.ops.wm.call_panel(name="VIEW3D_PT_tools_brush_falloff")
-                case _:  # If somehow shift was clicked for others
-                    brush.curve_preset = self.falloff
-        else:
-            match self.falloff:
-                case 'SMOOTH':
-                    brush.curve_preset = self.falloff
-                case 'SHARP':
-                    brush.curve_preset = self.falloff
-                case 'CUSTOM':
-                    brush.curve_preset = self.falloff
-                case _:
-                    brush.curve_preset = self.falloff
+                    bpy.ops.wm.call_panel(name="VIEW3D_PT_tools_weight_gradient" if (context.mode == 'PAINT_WEIGHT') else "VIEW3D_PT_tools_brush_falloff")
+
         return {'FINISHED'}
 
 
