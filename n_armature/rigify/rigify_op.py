@@ -43,7 +43,6 @@ class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
     def invoke(self, context, event):
         metarig = context.object
         
-        bcoll_properties = {}
         if (target_rig := metarig.data.rigify_target_rig):
             # Since rigify_generate() removes post-generate new data, store them so that they ca be remade later
 
@@ -51,6 +50,7 @@ class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
             all_bcolls = target_rig.data.collections_all
 
             # Bone collections
+            bcoll_properties = {}
             for bcoll in all_bcolls:
                 props = {}
                 for prop in bcoll.bl_rna.properties:
@@ -106,7 +106,7 @@ class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
 
         context.view_layer.objects.active = metarig
         result = bpy.ops.pose.rigify_generate()
-        if result == {'FINISHED'} and bcoll_properties:
+        if result == {'FINISHED'} and target_rig:
             target_rig.data.pose_position = pose_position
 
             # Remake missing bone collections
