@@ -14,7 +14,6 @@ class MXD_MT_Menu_Material_Preset(Menu):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("material.preset", text="Image Layers").type = 'IMAGE_LAYERS'
         layout.operator("material.preset", text="Outline").type = 'OUTLINE'
         layout.separator()
         layout.operator_context = 'INVOKE_DEFAULT'

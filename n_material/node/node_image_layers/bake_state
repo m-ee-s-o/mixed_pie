@@ -1,9 +1,0 @@
-Baking may produce these weird stripe or wave artifacts, expecially apparent with high contrast
-May also shrink
-Compositing also shrinks
-
-To test:
-- Put .py to all bake_ files, bake_preview already have .py
-- Remove .py of image_layers_ui
-- In image_layers_prop.ImageLayers_Panel, uncomment bake_settings
-- In image_layers_op, change all image_layers_ui to bake_image_layers_ui
