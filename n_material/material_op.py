@@ -86,7 +86,7 @@ class MXD_OT_Material_Preset(Operator):
     def outline(self):
         if not (material := self.materials.get("Outline")):
             material = self.emissive_plain_color(name="Outline")
-            material.diffuse_color = (0, 0, 0, 0.5)  # Color of outline in viewport display, translucent
+            material.diffuse_color = (0, 0, 0, 0)  # Color of outline in viewport display, don't show outline
 
         self.check = True
         self.set_to_active = False

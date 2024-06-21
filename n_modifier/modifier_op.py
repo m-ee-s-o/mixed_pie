@@ -81,12 +81,17 @@ class MXD_OT_Modifier(Base_Modifier_Poll, Operator):
                     case "Subdivision":
                         mod.render_levels = 1
                     case "Solidify(IH)":
+                        if (index := obj.data.materials.find("Outline")) == -1:
+                            bpy.ops.material.preset(type='OUTLINE')
+                            index = obj.data.materials.find("Outline")
+
                         mod.thickness = 0.0005
                         mod.offset = 1.0
                         mod.use_flip_normals = True
                         mod.use_quality_normals = True
-                        mod.material_offset = 1
+                        mod.material_offset = index
                         mod.material_offset_rim = 1
+
         self.len_ = len(self.objs)
         self.report({'INFO'}, f"Added {mod.name} to {self.len_} object{'s' if self.len_ > 1 else ''}.")
 
