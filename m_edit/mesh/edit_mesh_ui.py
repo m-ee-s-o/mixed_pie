@@ -1,9 +1,10 @@
 import bpy
 from bpy.types import Menu, Panel
 import addon_utils
+from ...f_scripts.scripts_utils import ScriptAppendablePie
 
 
-class MXD_MT_PIE_EditMesh(Menu):
+class MXD_MT_PIE_EditMesh(Menu, ScriptAppendablePie):
     bl_label = "Edit: Mesh"
 
     def draw(self, context):
@@ -13,21 +14,12 @@ class MXD_MT_PIE_EditMesh(Menu):
         auto_merge = tool_settings.use_mesh_automerge
         proportional_editing = tool_settings.use_proportional_edit
 
-        pie = layout.menu_pie()
-
-        pie.separator()  # Left
-        pie.operator("edit.tool_settings", depress=(auto_merge),                         # Right
-                     icon='CHECKBOX_HLT' if auto_merge else 'CHECKBOX_DEHLT',
-                     text="Auto Merge").mode = 'AUTO_MERGE'
-        pie.separator()  # Bottom
-        pie.operator("mode.use_snap", depress=(snap),                                    # Top
-                     icon='CHECKBOX_HLT' if snap else 'CHECKBOX_DEHLT')
-        pie.separator()  # Top_left
-        pie.operator("edit.tool_settings", depress=(proportional_editing),               # Top_right
-                     icon='CHECKBOX_HLT' if proportional_editing else 'CHECKBOX_DEHLT',
-                     text="Proportional Editing").mode = 'PROPORTIONAL_EDITING'
-        pie.separator()  # Bottom_left
-        pie.operator("mesh.remove_doubles", icon='BLANK1').threshold = 0.000001          # Bottom_right
+        pie = self.pie_wrapper(layout.menu_pie())
+        pie.right("edit.tool_settings", depress=(auto_merge), icon='CHECKBOX_HLT' if auto_merge else 'CHECKBOX_DEHLT', text="Auto Merge").mode = 'AUTO_MERGE'
+        pie.top("mode.use_snap", depress=(snap), icon='CHECKBOX_HLT' if snap else 'CHECKBOX_DEHLT')
+        pie.top_right("edit.tool_settings", depress=(proportional_editing), icon='CHECKBOX_HLT' if proportional_editing else 'CHECKBOX_DEHLT', text="Proportional Editing").mode = 'PROPORTIONAL_EDITING'
+        pie.bottom_right("mesh.remove_doubles", icon='BLANK1').threshold = 0.000001
+        pie.draw()
 
 
 class MXD_MT_PIE_EditMesh_MarkEgde(Menu):
