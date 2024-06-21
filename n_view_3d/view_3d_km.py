@@ -13,6 +13,7 @@ def register():
                kc.keymaps.new(name='Object Mode'),
                kc.keymaps.new(name='Mesh'),
                kc.keymaps.new(name='Sculpt'),
+               kc.keymaps.new(name='Weight Paint'),
                )
         for km in kms:
             kmi = km.keymap_items.new('view3d.rotate_view', 'R', 'PRESS', key_modifier='W')
