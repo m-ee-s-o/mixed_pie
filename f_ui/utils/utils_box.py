@@ -1,31 +1,10 @@
 from math import radians
-from bpy.types import Event
 from mathutils import Matrix, Vector
 from ..utils.utils import EventTypeIntercepter
 
 
-class Corners(list):
-    corners_index = {'bottom_left': 0,
-                     'bottom_right': 1,
-                     'top_right': 2,
-                     'top_left': 3}
-
-    def __init__(self, point, width, height):
-        c_point = point.copy()
-        c_point.y -= height / 2; self.append(c_point.copy())  # BottomLeft
-        c_point.x += width; self.append(c_point.copy())       # BottomRight
-        c_point.y += height; self.append(c_point.copy())      # TopRight
-        c_point.x -= width; self.append(c_point.copy())       # TopLeft 
-
-    def __getattribute__(self, __name):
-        if __name in (indices := super().__getattribute__("corners_index")):
-            return self[indices[__name]]
-        else:
-            return super().__getattribute__(__name)
-
-
 def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segments=4,
-             include_corners_copy=False, origin_point='CENTER', skip_bevel=None):
+             origin_point='TOP_LEFT', skip_bevel:set=None):
     """
     Returns a list of vertices that is ready to be drawn.
 
@@ -41,10 +20,11 @@ def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segmen
     point = Vector(origin)
     skip_bevel = skip_bevel or set()
 
-    # MiddleLeft
-    point.x -= width / 2
-
-    corners = Corners(point, width, height)
+    corners = []
+    point.y -= height; corners.append(point.copy())  # BottomLeft
+    point.x += width; corners.append(point.copy())   # BottomRight
+    point.y += height; corners.append(point.copy())  # TopRight
+    point.x -= width; corners.append(point.copy())   # TopLeft 
 
     if bevel_radius < 1 or bevel_segments < 1:
         box_points.extend(corners)
@@ -56,16 +36,16 @@ def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segmen
         y_bevel = Vector((0, bevel_radius))
 
         if 'BOTTOM_LEFT' not in skip_bevel:
-            point.y -= b_height / 2; box_points.append(point.copy())
+            point.y -= b_height + bevel_radius; box_points.append(point.copy())
             origin = point + x_bevel
             point -= origin
             for _ in range(segments):
                 point.rotate(mat_rot); box_points.append(point + origin)
             point += origin
         else:
-            point.y -= height / 2
+            point.y -= height
             point.x += bevel_radius
-            box_points.append(corners.bottom_left.copy())
+            box_points.append(corners[0].copy())
 
         if 'BOTTOM_RIGHT' not in skip_bevel:
             point.x += b_width; box_points.append(point.copy())
@@ -77,7 +57,7 @@ def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segmen
         else:
             point.x += width - bevel_radius
             point.y += bevel_radius
-            box_points.append(corners.bottom_right.copy())
+            box_points.append(corners[1].copy())
 
         if 'TOP_RIGHT' not in skip_bevel:
             point.y += b_height; box_points.append(point.copy())
@@ -89,7 +69,7 @@ def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segmen
         else:
             point.y += height - bevel_radius
             point.x -= bevel_radius
-            box_points.append(corners.top_right.copy())
+            box_points.append(corners[2].copy())
 
         if 'TOP_LEFT' not in skip_bevel:
             point.x -= b_width; box_points.append(point.copy())
@@ -98,35 +78,27 @@ def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segmen
             for _ in range(segments):
                 point.rotate(mat_rot); box_points.append(point + origin)
         else:
-            box_points.append(corners.top_left.copy())
+            box_points.append(corners[3].copy())
 
     match origin_point:
-        case 'TOP_LEFT':
+        case 'CENTER':
             for point in (box_points if bevel_radius < 1 else (*corners, *box_points)):
-                point.x += width / 2
-                point.y -= height / 2
-
-    ret = []
+                point.x -= width / 2
+                point.y += height / 2
 
     if pattern == 'LINE':
         box_points = [point for point in box_points for _ in range(2)]
         box_points.append(box_points.pop(0))
+        return box_points
     else:
         half = len(box_points) // 2
         latter_half = box_points[half:]
         box_points = box_points[:half]
         box_points.extend(reversed(latter_half))
-        ret.append(get_tris_indices(box_points))
-
-    ret.insert(0, box_points)
-
-    if include_corners_copy:
-        ret.append(corners)
-
-    return ret
+        return box_points, get_tris_indices(box_points)
 
 
-def get_tris_indices(vertices, prior_tris_vertices: list=None, loop=False):
+def get_tris_indices(vertices, loop=False):
     tris_indices = []
 
     half = len(vertices) // 2
@@ -139,26 +111,22 @@ def get_tris_indices(vertices, prior_tris_vertices: list=None, loop=False):
         tris_indices.append([i, 0, i + half])
         tris_indices.append([i + half, 0, i + 1])
 
-    # # Offset to match the tris_indices to the indices of their verts
-    # if prior_tris_vertices:
-    #     len_prior_verts = len(prior_tris_vertices)
-    #     for i in tris_indices:
-    #         for j in range(3):
-    #             i[j] += len_prior_verts
-
     return tris_indices
 
-def point_inside(self, point: Event | Vector, corners: Corners=None):
+def point_inside(self, point: EventTypeIntercepter | Vector, originWidthHeight: tuple[Vector|tuple, int, int] = None):
     if isinstance(point, Vector):
         pass
-    elif isinstance(point, (Event, EventTypeIntercepter)):
-        event = point
-        point = Vector((event.mouse_region_x, event.mouse_region_y))
+    elif isinstance(point, EventTypeIntercepter):
+        point = point.cursor
     else:
         raise NotImplementedError
 
-    corners = corners if corners else self.corners
-    if corners.bottom_left.x <= point.x <= corners.bottom_right.x  \
-            and corners.bottom_left.y <= point.y <= corners.top_left.y:
-        return True
-
+    if originWidthHeight:
+        origin, width, height = originWidthHeight
+        if origin[0] <= point.x <= origin[0] + width  \
+                and origin[1] - height <= point.y <= origin[1]:
+            return True
+    else:
+        if self.left <= point.x <= self.right  \
+                and self.bottom <= point.y <= self.top:
+            return True

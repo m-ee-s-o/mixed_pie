@@ -61,7 +61,7 @@ class PieButton(Box):
             # If cursor in zone, make another rectangle with brighter color
             shader = gpu.shader.from_builtin('UNIFORM_COLOR')
             tris_verts, tris_indices = make_box(self.origin, self.width - 2, self.height - 2, pattern='TRIS',
-                                                bevel_radius=self.bevel_radius, bevel_segments=self.bevel_segments)
+                                                bevel_radius=self.bevel_radius, bevel_segments=self.bevel_segments, origin_point=self.origin_point)
             shader.uniform_float("color", (0.329 + .1, 0.329 + .1, 0.329 + .1, 1))
             box = batch_for_shader(shader, 'TRIS', {'pos': tris_verts}, indices=tris_indices)
             box.draw(shader)

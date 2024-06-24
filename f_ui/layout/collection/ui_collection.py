@@ -4,17 +4,17 @@ from mathutils import Vector
 import gpu
 from gpu_extras.batch import batch_for_shader
 from ..ui_panel_layout import PanelLayout
-from ..ui_box import Box
+from ..ui_box import Box, Bounds
 from ..ui_label import LabelBox
 from ..ui_prop import CollectionProp
-from ...utils.utils_box import make_box, point_inside
+from ...utils.utils_box import point_inside
 from ....a_utils.utils_func import recur_get_bone_collections, recur_get_bcoll_children
 
 
 # TODO: Improve performance (obvious when moving main box).
 
 
-class Collection:
+class Collection(Bounds):
     # msgbus = set()
     inherit = PanelLayout.inherit
     custom_spacing_between_children = 0
@@ -199,11 +199,10 @@ class Collection:
         self.resize_ui_inactive = []
         self.resize_color = (0.5, 0.5, 0.5, 1)
 
-        Box.make(self)  # Make self.corners
         self.resizing = getattr(self.attr_holder, f"{self.id}_resizing_y", None)
         if not self.resizing:
             # Resize indicator UI
-            bottom = self.corners.bottom_right.copy()
+            bottom = self.bottom_right
             bottom.x -= (self.width / 2) - (self.resize_ui_length / 2); self.resize_ui_inactive.append(bottom.copy())
             bottom.x -= self.resize_ui_length; self.resize_ui_inactive.append(bottom)
         
@@ -229,10 +228,7 @@ class Collection:
 
         if not self.resizing:
             # Bottom resize area
-            _, corners = make_box(self.corners.bottom_left + Vector((0, self.MARGIN)), self.width, self.MARGIN * 2,
-                                include_corners_copy=True, origin_point='TOP_LEFT')
-
-            if point_inside(None, event, corners):
+            if point_inside(None, event, (Vector((self.left, self.bottom + self.MARGIN)), self.width, self.MARGIN * 2)):
                 self.attr_holder.hold = signature
                 if context.object.type == 'ARMATURE':  # Cursor would jitter for modes like Weight Paint (it's automatically set for the mode every frame)
                     context.window.cursor_modal_set('MOVE_Y')
@@ -303,12 +299,12 @@ class Collection:
         shader.uniform_float("color", self.resize_color)
         vertices = self.resize_ui_inactive
         if self.attr_holder.hold == (self.id, "y"):
-            vertices = (self.corners.bottom_left, self.corners.bottom_right)
+            vertices = (self.bottom_left, self.bottom_right)
         line = batch_for_shader(shader, 'LINES', {'pos': vertices})
         line.draw(shader)
         gpu.state.line_width_set(1)
 
-class CollectionColumn:
+class CollectionColumn(Bounds):
     inherit = PanelLayout.inherit
     custom_spacing_between_children = 0
 
@@ -373,7 +369,6 @@ class CollectionColumn:
             category_name.width += increment
 
     def modal(self, context, event):
-        Box.make(self)
         if hasattr(self, "scroll_bar"):
             self.modal_scoll(context, event)
         self.modal_resize_x(context, event)
@@ -431,10 +426,7 @@ class CollectionColumn:
 
         if not x_resize_click:
             # Right resize UI
-            _, corners = make_box(self.corners.top_right - Vector((self.MARGIN, 0)), self.MARGIN * 2, self.height,
-                                    include_corners_copy=True, origin_point='TOP_LEFT')
-
-            if point_inside(None, event, corners):
+            if point_inside(None, event, ((self.right - self.MARGIN, self.top), self.MARGIN * 2, self.height)):
                 self.attr_holder.hold = signature
                 if context.object.type == 'ARMATURE':  # Cursor would jitter for modes like Weight Paint (it's set for the mode)
                     context.window.cursor_modal_set('MOVE_X')
@@ -491,9 +483,9 @@ class CollectionColumn:
 
         if (self.parent.id, self.properties.column_index) not in self.attr_holder.collection_resize_column_id_indices:
             # Resize indicator UI
-            right = self.corners.top_right.copy()
-            right.y -= (self.height / 2) - (self.parent.resize_ui_length / 2); self.resize_ui_inactive.append(right.copy())
-            right.y -= self.parent.resize_ui_length; self.resize_ui_inactive.append(right)
+            top_right = self.top_right
+            top_right.y -= (self.height / 2) - (self.parent.resize_ui_length / 2); self.resize_ui_inactive.append(top_right.copy())
+            top_right.y -= self.parent.resize_ui_length; self.resize_ui_inactive.append(top_right)
 
     def draw(self):
         # Box.make(self)
@@ -513,7 +505,7 @@ class CollectionColumn:
         if (len(self.parent.collection_columns) > 1
                 and self is not self.parent.collection_columns[-1]  # Not last, since right border line has rounded corners
                 or resizing):  # Division line
-            batch_for_shader(shader, 'LINES', {'pos': (self.corners.top_right, self.corners.bottom_right)}).draw(shader)
+            batch_for_shader(shader, 'LINES', {'pos': (self.top_right, self.bottom_right)}).draw(shader)
 
         if not resizing:
             gpu.state.line_width_set(2)
@@ -538,7 +530,7 @@ class CollectionScrollBar:
         self.scroll.make()
 
 
-class CollectionItem:
+class CollectionItem(Bounds):
     inherit = PanelLayout.inherit
     adjustable = True
 
@@ -612,7 +604,7 @@ class CollectionItem:
     def modal(self, context, event):
         if self.attr_holder.hold:
             return
-        Box.make(self)
+
         if Box.point_inside(self, event):
             self.inside = True
             if event.type == 'LEFTMOUSE' and event.value == 'PRESS':

@@ -2,7 +2,7 @@ import bpy
 import blf
 from mathutils import Vector
 from .ui_panel_layout import PanelLayout
-from .ui_box import Box
+from .ui_box import Box, Bounds
 from .ui_label import LabelBox
 from .ui_icon import IconBox
 
@@ -23,7 +23,7 @@ class OperatorProp:
         # If there are multiple operators of the same type, the last property will be applied even when clicking others before it.
         super().__getattribute__("prop_map")[__name] = __value
 
-class UI_Operator:
+class UI_Operator(Bounds):
     inherit = PanelLayout.inherit
     snap_to = Box.snap_to
 
@@ -54,7 +54,7 @@ class UI_Operator:
         if self.attr_holder.hold:
             return
         PanelLayout.center(self, x=getattr(self, "center_x", False), y=getattr(self, "center_y", False))
-        Box.make(self)  # TODO: don't make here
+
         if Box.point_inside(self, event):
             self.color = (0.4, 0.4, 0.4, 1)
 

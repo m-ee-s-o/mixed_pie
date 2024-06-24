@@ -1,7 +1,6 @@
 from collections import defaultdict
 import bpy
 from mathutils import Vector
-from ..utils.utils_box import make_box
 from .ui_base_layout import Layout
 
 
@@ -43,10 +42,7 @@ class PanelLayout(Layout):
 
         if not relocate_cursor:
             # Top resize area
-            _, corners = make_box(self.main_box.origin + Vector((0, self.MARGIN)), width, self.MARGIN * 2,
-                                include_corners_copy=True, origin_point='TOP_LEFT')
-
-            if Box.point_inside(None, event, corners):
+            if Box.point_inside(None, event, (self.main_box.origin + Vector((0, self.MARGIN)), width, self.MARGIN * 2)):
                 self.attr_holder.hold = signature
                 context.window.cursor_modal_set('SCROLL_XY')
                 if event.type == 'LEFTMOUSE' and event.value == 'PRESS':

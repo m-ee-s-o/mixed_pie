@@ -15,7 +15,6 @@ class TextBox(LabelBox):
         self.origin.y += self.height / 2
         self.height = min(self.height * 2, self.parent.height)
         PanelLayout.center(self, y=True)
-        Box.make(self)
         self.origin.y = y
         self.height = h
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and Box.point_inside(self, event):

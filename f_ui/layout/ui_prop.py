@@ -1,14 +1,14 @@
 import blf
 from mathutils import Vector
 from .ui_panel_layout import PanelLayout
-from .ui_box import Box
+from .ui_box import Box, Bounds
 from .ui_label import LabelBox
 from .ui_icon import IconBox
 from .ui_operator import UI_Operator
 from ...a_utils.utils_func import recur_get_bone_collections
 
 
-class Prop:
+class Prop(Bounds):
     inherit = PanelLayout.inherit
     make = UI_Operator.make
     draw = UI_Operator.draw
@@ -52,7 +52,6 @@ class Prop:
                 event.handled = True
 
         PanelLayout.center(self, x=getattr(self, "center_x", False), y=getattr(self, "center_y", False))
-        Box.make(self)
 
         match self.data.bl_rna.properties[self.property].type:
             case 'BOOLEAN':

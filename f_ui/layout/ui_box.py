@@ -1,11 +1,36 @@
 import gpu
 from gpu_extras.batch import batch_for_shader
+from mathutils import Vector
 from ..utils.utils_box import make_box, point_inside
 from .ui_panel_layout import PanelLayout
 
 
-class Box(PanelLayout):
+class Bounds:
+    @property
+    def top(self): return self.origin.y
+    @property
+    def bottom(self): return self.origin.y - self.height
+    @property
+    def left(self): return self.origin.x
+    @property
+    def right(self): return self.origin.x + self.width
+    @property
+    def top_left(self): return self.origin.copy()
+    @property
+    def top_right(self): return Vector((self.right, self.top))
+    @property
+    def bottom_left(self): return Vector((self.left, self.bottom))
+    @property
+    def bottom_right(self): return Vector((self.right, self.bottom))
+
+
+class Box(Bounds):
     point_inside = point_inside
+    inherit = PanelLayout.inherit
+    center = PanelLayout.center
+    icon = PanelLayout.icon
+    label = PanelLayout.label
+    recur_offset_children_origin = PanelLayout.recur_offset_children_origin
 
     def __init__(self, parent, width, height, fill=True, color=(1, 1, 1, 1)):
         self.inherit(parent)
@@ -22,12 +47,10 @@ class Box(PanelLayout):
     def make(self):
         bevel = {'bevel_radius': self.bevel_radius, 'bevel_segments': self.bevel_segments}
         if self.fill:
-            self.draw_vertices, self.draw_indices, self.corners = make_box(self.origin, self.width, self.height, pattern='TRIS',
-                                                                           include_corners_copy=True, **bevel, origin_point=self.origin_point,
-                                                                           skip_bevel=self.skip_bevel)
+            self.draw_vertices, self.draw_indices = make_box(self.origin, self.width, self.height, pattern='TRIS',
+                                                             **bevel, origin_point=self.origin_point, skip_bevel=self.skip_bevel)
         else:
-            self.draw_vertices, self.corners = make_box(self.origin, self.width, self.height, include_corners_copy=True,
-                                                        **bevel, origin_point=self.origin_point, skip_bevel=self.skip_bevel)
+            self.draw_vertices = make_box(self.origin, self.width, self.height, **bevel, origin_point=self.origin_point, skip_bevel=self.skip_bevel)
 
     def draw(self):
         shader = gpu.shader.from_builtin('UNIFORM_COLOR')

@@ -21,14 +21,14 @@ class IconBox(Box):
 
     def draw(self):
         Box.center(self, y=True)
-        self.make()
+        # self.make()
         # Box.draw(self)
 
         shader = gpu.shader.from_builtin('IMAGE')
         batch = batch_for_shader(
             shader, 'TRI_FAN',
             {
-                "pos": self.corners,
+                "pos": (self.bottom_left, self.bottom_right, self.top_right, self.top_left),
                 # Trim above and below since there seems to be a line at the side
                 # "texCoord": ((0, 0.02), (0.99, 0.02), (0.99, 0.98), (0, 0.98)),
                 "texCoord": ((0, 0), (0.99, 0), (0.99, 1), (0, 1)),
