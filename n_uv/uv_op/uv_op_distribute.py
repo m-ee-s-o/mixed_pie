@@ -79,7 +79,7 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
     island_align: BoolProperty(name="Align Island", default=True)
     center = ('CENTER', "Center", "")
     island_alignment_x: EnumProperty(name="", items=[('LEFT', "Left", ""), center, ('RIGHT', "Right", "")], default='LEFT')
-    island_alignment_y: EnumProperty(name="", items=[('TOP', "Top", ""), center, ('DOWN', "Down", "")], default='TOP')
+    island_alignment_y: EnumProperty(name="", items=[('TOP', "Top", ""), center, ('BOTTOM', "Bottom", "")], default='TOP')
 
     is_ascending: BoolProperty(name="Ascending", default=True, description="Use the closest island from 0 as origin")
 
@@ -217,7 +217,7 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
                             origin.y = max_bounds.y
                         case 'CENTER':
                             origin.y = center.y
-                        case 'DOWN':
+                        case 'BOTTOM':
                             origin.y = min_bounds.y
 
                 case (False, True):  # Y
@@ -279,39 +279,39 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
             return self.invoke_pie_menu(context, event)
 
     def draw_structure(self, context, event, layout):
-        layout.button('RIGHT_CENTER', "🡪", self.__class__.get_description)
-        layout.button('RIGHT_TOP', "🡭", self.__class__.get_description)
-        layout.button('TOP_RIGHT', "🡭", self.__class__.get_description)
-        layout.button('TOP_CENTER', "🡩", self.__class__.get_description)
-        layout.button('TOP_LEFT', "🡬", self.__class__.get_description)
-        layout.button('LEFT_TOP', "🡬", self.__class__.get_description)
-        layout.button('LEFT_CENTER', "🡨", self.__class__.get_description)
-        layout.button('LEFT_DOWN', "🡯", self.__class__.get_description)
-        layout.button('DOWN_LEFT', "🡯", self.__class__.get_description)
-        layout.button('DOWN_CENTER', "🡫", self.__class__.get_description)
-        layout.button('DOWN_RIGHT', "🡮", self.__class__.get_description)
-        layout.button('RIGHT_DOWN', "🡮", self.__class__.get_description)
+        layout.text_size *= 0.8
+        layout.button('RIGHT_CENTER', "🡪", self.get_description)
+        layout.button('RIGHT_TOP', "🡭", self.get_description)
+        layout.button('TOP_RIGHT', "🡭", self.get_description)
+        layout.button('TOP_CENTER', "🡩", self.get_description)
+        layout.button('TOP_LEFT', "🡬", self.get_description)
+        layout.button('LEFT_TOP', "🡬", self.get_description)
+        layout.button('LEFT_CENTER', "🡨", self.get_description)
+        layout.button('LEFT_BOTTOM', "🡯", self.get_description)
+        layout.button('BOTTOM_LEFT', "🡯", self.get_description)
+        layout.button('BOTTOM_CENTER', "🡫", self.get_description)
+        layout.button('BOTTOM_RIGHT', "🡮", self.get_description)
+        layout.button('RIGHT_BOTTOM', "🡮", self.get_description)
 
         self.button_groups = (
-            ('RIGHT_DOWN', 'RIGHT_CENTER', 'RIGHT_TOP'),
+            ('RIGHT_BOTTOM', 'RIGHT_CENTER', 'RIGHT_TOP'),
             ('TOP_RIGHT', 'TOP_CENTER', 'TOP_LEFT'),
-            ('LEFT_TOP', 'LEFT_CENTER', 'LEFT_DOWN'),
-            ('DOWN_LEFT', 'DOWN_CENTER', 'DOWN_RIGHT'),
+            ('LEFT_TOP', 'LEFT_CENTER', 'LEFT_BOTTOM'),
+            ('BOTTOM_LEFT', 'BOTTOM_CENTER', 'BOTTOM_RIGHT'),
         )
 
     @staticmethod
     def get_description(button):
-        button.root.text_size *= 0.8
         axis, alignment = button.id.split("_")
         X, Y = (True, False), (False, True)
         button.island_axis = X if (axis in {'LEFT', 'RIGHT'}) else Y
-        button.is_ascending = (axis in {'LEFT', 'DOWN'})
+        button.is_ascending = (axis in {'LEFT', 'BOTTOM'})
         if button.island_axis == X:
             button.island_alignment_y = alignment
         else:
             button.island_alignment_x = alignment
-        return f"{'X' if button.island_axis == X else 'Y'}\n"  \
-               f"{'Ascending' if button.is_ascending else 'Descending'} based on an island's {axis.lower()}most vertex\n"                 \
+        return f"{'X' if button.island_axis == X else 'Y'} Axis\n"  \
+               f"{'Ascending' if button.is_ascending else 'Descending'} order based on an island's {axis.lower()}most vertex\n"                 \
                f"{alignment.title()} {'Vertical' if button.island_axis == X else 'Horizontal'} Alignment"
 
     def button_effects(self, context, button):
