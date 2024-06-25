@@ -29,7 +29,7 @@ class UI_Operator(Bounds):
 
     def __init__(self, parent, id_name, label=None, icon=None, emboss=True):
         self.id_name = id_name
-        self._prop = OperatorProp(id_name)
+        self.prop = OperatorProp(id_name)
         margin = 4
         Box.__init__(self, parent, margin * 2 * parent.ui_scale, (32 + margin * 2) * parent.ui_scale, color=(0.3, 0.3, 0.3, 1))
         self.flow(horizontal=True)
@@ -59,13 +59,7 @@ class UI_Operator(Bounds):
             self.color = (0.4, 0.4, 0.4, 1)
 
             if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-                prop = self.prop
-                operator_prop = prop.operator_prop
-                for property, value in prop.prop_map.items():
-                    setattr(operator_prop, property, value)
-
-                eval("bpy.ops." + self.id_name)(self.root.operator_context, **{prop: getattr(operator_prop, prop)
-                                                for prop in operator_prop.rna_type.properties.keys() if prop != "rna_type"})
+                eval("bpy.ops." + self.id_name)(self.root.operator_context, **self.prop.prop_map)
             event.handled = True
 
     def make(self):
@@ -77,7 +71,3 @@ class UI_Operator(Bounds):
     def draw(self):
         if self.emboss:
             Box.draw(self)
-
-    @property
-    def prop(self):
-        return self._prop

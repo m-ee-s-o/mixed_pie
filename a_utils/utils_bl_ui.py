@@ -1,6 +1,6 @@
-import bpy
 from bpy.types import UILayout
 from ..f_scripts.scripts_utils import ScriptAppendablePie
+from ..f_ui.layout.ui_operator import OperatorProp
 
 
 class PieWrapper:
@@ -16,17 +16,26 @@ class PieWrapper:
         else:
             return super().__getattribute__(name)
 
-    def append_to_pie(self, *args, attr="operator", **kwargs):
+    def append_to_pie(self, *args, **kwargs):
         if not (args or kwargs):
             return
-        self.slices[self.direction] = (attr, args, kwargs)
-        return bpy.context.window_manager.operator_properties_last(args[0])
+        args = list(args)
+        attr = args.pop(0) if isinstance(args[0], str) and hasattr(self.layout, args[0]) else "operator"
+
+        self.slices[self.direction] = [attr, args, kwargs, None]
+
+        if attr == "operator":
+            self.slices[self.direction][3] = OperatorProp(args[0])
+            return self.slices[self.direction][3]
     
     def draw(self):
         for direction, params in self.slices.items():
             if params is not None:
-                attr, args, kwargs = params
-                getattr(self.layout, attr)(*args, **kwargs)
+                attr, args, kwargs, operator_prop = params
+                op = getattr(self.layout, attr)(*args, **kwargs)
+                if attr == "operator":
+                    for prop, value in operator_prop.prop_map.items():
+                        setattr(op, prop, value)
 
             elif issubclass(self.cls, ScriptAppendablePie):
                 params = self.cls.direction_occupant[direction]
