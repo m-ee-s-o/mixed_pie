@@ -12,12 +12,12 @@ class LabelBox:
         self.adjustable = True
         self.text = str(text)
         Box.__init__(self, parent, 0, 0, fill=False)
-        self.text_size = self.root.text_size
-        self.center = self.root.text_alignment.center
+        self.text_size = self.root.text_size * self.ui_scale
+        self.is_center_aligned = self.root.text_alignment.center
         self.label_color = (1, 1, 1, 1)
 
         # Set minimum size
-        blf.size(0, self.text_size * self.ui_scale)
+        blf.size(0, self.text_size)
         # self.height = blf.dimensions(0, ")")[1]
         self.height = blf.dimensions(0, self.text)[1]
         self.width = blf.dimensions(0, self.text)[0]
@@ -34,7 +34,7 @@ class LabelBox:
         # Box.make(self)
 
     def get_label_dimensions(self, text):
-        blf.size(0, self.text_size * self.ui_scale)  # Needs to be here since it clashes with addons like Screencast Keys (blf.size is called very much)
+        blf.size(0, self.text_size)  # Needs to be here since it clashes with addons like Screencast Keys (blf.size is called very much)
         return Vector(blf.dimensions(0, text))
 
     def draw(self):
@@ -59,7 +59,7 @@ class LabelBox:
 
         # print(self.text)
         blf.position(0, *origin, 0)
-        blf.size(0, self.text_size * self.ui_scale)
+        blf.size(0, self.text_size)
 
         # # TODO: Parse color
         # re.findall("<1, 1, 1, 1>")
@@ -72,7 +72,7 @@ class LabelBox:
         #         code = "</c>"
         #     text.find()
 
-        if self.color != (1, 1, 1, 1):
+        if self.label_color != (1, 1, 1, 1):
             blf.color(0, *self.label_color)
             blf.draw(0, text)
             blf.color(0, 1, 1, 1, 1)

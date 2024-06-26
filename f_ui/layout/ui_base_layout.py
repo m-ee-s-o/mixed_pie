@@ -34,19 +34,37 @@ class Layout:
                     if option == name:
                         continue
                     super().__setattr__(option, False)
+            elif name != "active":
+                raise NotImplementedError
             if value:
                 super().__setattr__(name, value)
             else:
                 super().__setattr__("left", True)  # Make left at least True
 
-        def __call__(self, option_in_caps):
-            setattr(self, option_in_caps.lower(), True)
-        
-        def get(self, return_self=False):
+        @property
+        def active(self):
             for option in self.options:
                 if getattr(self, option):
-                    active = option.upper()
-                    return active if not return_self else (active, self)
+                    return option.upper()
+        
+        @active.setter
+        def active(self, value_in_caps):
+            setattr(self, value_in_caps.lower(), True)
+
+    class ChangeTemporarily:
+        # Note: If this doesn't affect performance much, it's fine
+
+        def __init__(self, parent, attr, value):
+            self.parent = parent
+            self.attr = attr
+            self.pre_value = getattr(parent, attr)
+            setattr(parent, attr, value)
+
+        def __enter__(self):
+            return self
+        
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            setattr(self.parent, self.attr, self.pre_value)
 
     def __init__(self, operator, origin):
         self.parent_modal_operator = operator

@@ -322,14 +322,13 @@ class CollectionColumn(Bounds):
         self.width = properties.width * self.ui_scale
 
         if parent.settings_basis.column_definition_type == 'CUSTOM':
-            pre, alignment = self.root.text_alignment.get(return_self=True)
-            alignment.center = True
-            category_label = PanelLayout.label(self, properties.name)
-            category_label.text_size *= 1.05
-            category_label.label_color = (0.757, 0.855, 1, 1)
-            category_label.width = self.width - (self.MARGIN * 2)
-            category_label.height = parent.ITEM_HEIGHT
-            alignment(pre)
+            with self.root.ChangeTemporarily(self.root.text_alignment, "active", 'CENTER'):
+                category_label = PanelLayout.label(self, properties.name)
+                category_label.text_size *= 1.05
+                category_label.label_color = (0.757, 0.855, 1, 1)
+                category_label.width = self.width - (self.MARGIN * 2)
+                category_label.height = parent.ITEM_HEIGHT
+
             # Make some space between label and first item
             self.current_element = self
             self.initial_child_origin = category_label.origin.copy()
