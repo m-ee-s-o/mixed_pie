@@ -293,7 +293,7 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
         layout.button('BOTTOM_RIGHT', "🡮", self.get_description)
         layout.button('RIGHT_BOTTOM', "🡮", self.get_description)
 
-        self.button_groups = (
+        layout.button_groups = (
             ('RIGHT_BOTTOM', 'RIGHT_CENTER', 'RIGHT_TOP'),
             ('TOP_RIGHT', 'TOP_CENTER', 'TOP_LEFT'),
             ('LEFT_TOP', 'LEFT_CENTER', 'LEFT_BOTTOM'),

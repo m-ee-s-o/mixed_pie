@@ -60,7 +60,7 @@ class PieMenuLayout(Layout):
     
     def draw(self):
         self.draw_center_ui()
-        if hasattr(self.parent_modal_operator, "button_groups"):
+        if hasattr(self, "button_groups"):
             self.draw_button_groups()
         super().draw()
 
@@ -73,7 +73,7 @@ class PieMenuLayout(Layout):
                         color=(0.278, 0.447, 0.702, 1), arc=60, offset_angle=self.cursor_angle + 30)
 
     def draw_button_groups(self):
-        for group in self.parent_modal_operator.button_groups:
+        for group in self.button_groups:
             arc = 0
             for current_id, next_id in zip(group, group[1:]):
                 current = self.buttons[current_id]
