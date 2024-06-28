@@ -72,9 +72,14 @@ class LabelBox:
         #         code = "</c>"
         #     text.find()
 
-        if self.label_color != (1, 1, 1, 1):
-            blf.color(0, *self.label_color)
-            blf.draw(0, text)
-            blf.color(0, 1, 1, 1, 1)
+        if self.active:
+            if self.label_color != (1, 1, 1, 1):
+                blf.color(0, *self.label_color)
+                blf.draw(0, text)
+                blf.color(0, 1, 1, 1, 1)        
+            else:
+                blf.draw(0, text)       
         else:
+            blf.color(0, self.label_color[0] * 0.5, self.label_color[1] * 0.5, self.label_color[2] * 0.5, self.label_color[3])
             blf.draw(0, text)
+            blf.color(0, 1, 1, 1, 1)       

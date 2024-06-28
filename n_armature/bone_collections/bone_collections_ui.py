@@ -61,10 +61,22 @@ class MXD_OT_Armature_BoneCollectionPanel(MXD_OT_Utils_Panel, Operator):
             layout.label(item.name)
 
         ui_bcoll = bpy.context.preferences.addons[__package__.partition(".")[0]].preferences.ui_bone_collections
-
         if ui_bcoll.show_lock:
             layout.collection_prop(collection, item, "MixedPie.locked", emboss=False, icon='LOCKED' if item.MixedPie.locked else 'UNLOCKED')
+
+        current = item
+        while current.parent is not None:
+            if not current.parent.is_visible:
+                active = False
+                break
+            current = current.parent
+        else:
+            active = True
+
+        layout.active = active and not collection.is_solo_active  # If one is_solo, is_visible would be useless so gray that out (imitating built-in blender effect)
         layout.collection_prop(collection, item, "is_visible", emboss=False, icon='HIDE_OFF' if item.is_visible else 'HIDE_ON')
+        layout.active = True
+
         if ui_bcoll.show_solo:
             layout.collection_prop(collection, item, "is_solo", emboss=False, icon='SOLO_ON' if item.is_solo else 'SOLO_OFF')
 

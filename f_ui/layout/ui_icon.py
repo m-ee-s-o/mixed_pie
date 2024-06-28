@@ -24,7 +24,8 @@ class IconBox(Box):
         # self.make()
         # Box.draw(self)
 
-        shader = gpu.shader.from_builtin('IMAGE')
+        shader = gpu.shader.from_builtin('IMAGE_COLOR')
+
         batch = batch_for_shader(
             shader, 'TRI_FAN',
             {
@@ -37,6 +38,8 @@ class IconBox(Box):
         )
         shader.bind()
         shader.uniform_sampler("image", self.texture)
+        shader.uniform_float("color", (0.5, 0.5, 0.5, 1) if not self.active else (1, 1, 1, 1))
+
         gpu.state.blend_set("ALPHA")
         batch.draw(shader)
         gpu.state.blend_set("NONE")

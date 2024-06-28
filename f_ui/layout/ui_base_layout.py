@@ -79,7 +79,7 @@ class Layout:
         self.elements = []
         self.children = []
         self.reinitialize = False
-        self.hold = None
+        self.active = True
 
         self.bevel_radius = self.DEFAULT_BEVEL_RADIUS
         self.bevel_segments = self.DEFAULT_BEVEL_SEGMENTS
@@ -105,7 +105,7 @@ class Layout:
             element.draw()
 
     def inherit(self, parent):
-        for attr in {'root', 'attr_holder', 'ui_scale', 'MARGIN', 'vMARGIN_TOP_LEFT', 'parent_modal_operator'}:
+        for attr in {'root', 'attr_holder', 'ui_scale', 'MARGIN', 'vMARGIN_TOP_LEFT', 'parent_modal_operator', 'active'}:
             setattr(self, attr, getattr(parent, attr))
 
         self.parent = parent
