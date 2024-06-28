@@ -122,7 +122,7 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             SIDE = 14 * self.UI_SCALE
             points_area = []
             for index, point in enumerate(points_region):
-                box_points, point_corners = make_box(point, SIDE, SIDE, include_corners_copy=True, origin_point='CENTER')
+                box_points, point_corners = make_box(point, SIDE, SIDE, return_corners=True, origin_point='CENTER')
                 verts = self.active if (index == self.index) and self.origin else vertices
                 verts.extend(box_points)
                 points_area.append(point_corners)

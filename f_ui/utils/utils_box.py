@@ -4,7 +4,7 @@ from ..utils.utils import EventTypeIntercepter
 
 
 def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segments=4,
-             origin_point='TOP_LEFT', skip_bevel:set=None):
+             origin_point='TOP_LEFT', skip_bevel:set=None, return_corners=False):
     """
     Returns a list of vertices that is ready to be drawn.
 
@@ -86,16 +86,24 @@ def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segmen
                 point.x -= width / 2
                 point.y += height / 2
 
+    ret = []
+
     if pattern == 'LINE':
         box_points = [point for point in box_points for _ in range(2)]
         box_points.append(box_points.pop(0))
-        return box_points
+        ret.append(box_points)
     else:
         half = len(box_points) // 2
         latter_half = box_points[half:]
         box_points = box_points[:half]
         box_points.extend(reversed(latter_half))
-        return box_points, get_tris_indices(box_points)
+        ret.append(box_points)
+        ret.append(get_tris_indices(box_points))
+
+    if return_corners:
+        ret.append(corners)
+
+    return ret
 
 
 def get_tris_indices(vertices, loop=False):
