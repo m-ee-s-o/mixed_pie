@@ -19,10 +19,8 @@ class PieButton(Box):
         self.height = self.button_label.height + self.MARGIN * 2
         self.width = self.height
         self.origin_point = 'CENTER'
-        pre_text_size = self.root.text_size
         self.description_text = desciptor(self) if desciptor else "None"
         self.text_size = self.root.text_size
-        self.root.text_size = pre_text_size
 
     def modal(self, context, event):
         if self.active:
@@ -32,9 +30,7 @@ class PieButton(Box):
             # else:
                 pre_text_size = self.root.text_size
                 self.root.text_size = self.text_size
-                dimensions = blf.dimensions(0, self.description_text)
-                # dimensions = blf.dimensions(0, str(time.time() - counters[self.id]))
-                description = Box(self, dimensions[0], dimensions[1], color=(0, 0, 0, 1))
+                description = Box(self, 0, 0, color=(0, 0, 0, 1))
                 # lbl = description.label(time.time() - counters[self.id])
                 height = width = 0
                 for i, txt in enumerate(self.description_text.split("\n")):

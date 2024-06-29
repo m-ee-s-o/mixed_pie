@@ -58,7 +58,7 @@ class UI_Operator(Bounds):
         if Box.point_inside(self, event):
             self.color = (0.4, 0.4, 0.4, 1)
 
-            if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+            if event.type == 'LEFTMOUSE' and event.value in {'PRESS', 'DOUBLECLICK'}:
                 eval("bpy.ops." + self.id_name)(self.root.operator_context, **self.prop.prop_map)
             event.handled = True
 

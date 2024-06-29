@@ -114,19 +114,20 @@ class Layout:
 
         current_element = getattr(parent, "current_element", parent)
 
-        if (custom_spacing := getattr(parent, "custom_spacing_between_children", None)) is not None:
+        if (origin_of_next_child := getattr(parent, "origin_of_next_child", None)):
+            self.origin = origin_of_next_child
+            parent.origin_of_next_child = None
+
+        elif (custom_spacing := getattr(parent, "custom_spacing_between_children", None)) is not None:
             if current_element != parent:
                 self.origin = current_element.origin.copy()
                 if parent.flow.horizontal:
                     self.origin.x += current_element.width + custom_spacing
                 else:
                     self.origin.y -= current_element.height + custom_spacing
-
-            elif (initial_child_origin := getattr(parent, "initial_child_origin", None)):
-                self.origin = initial_child_origin
-
             else:
                 self.origin = current_element.origin + self.vMARGIN_TOP_LEFT
+
         else:
             if not parent.children:
                 self.origin = parent.origin.copy()

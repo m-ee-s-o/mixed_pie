@@ -1,7 +1,6 @@
-from mathutils import Matrix, Vector
-from .layout.ui_button import PieButton
+from mathutils import Vector
 from .layout.ui_pie_menu import PieMenuLayout
-from .utils.utils import EventTypeIntercepter
+from .utils.utils import Attr_Holder, EventTypeIntercepter
 
 
 class MXD_OT_Utils_PieMenu:
@@ -16,6 +15,7 @@ class MXD_OT_Utils_PieMenu:
     def invoke_pie_menu(self, context, event):
         self.cursor = Vector((event.mouse_region_x, event.mouse_region_y))
         self.origin = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.attr_holder = Attr_Holder()
 
         if not hasattr(self, "handler"):
             context.window_manager.modal_handler_add(self)
@@ -32,7 +32,7 @@ class MXD_OT_Utils_PieMenu:
     def pie_listener(self, context, __event):
         context.area.tag_redraw()
         layout = PieMenuLayout(self, self.cursor)
-        event = EventTypeIntercepter(__event)
+        event = EventTypeIntercepter(__event, layout.ui_scale, self.attr_holder)
 
         self.ui_layout = layout
         self.draw_structure(context, event, layout)

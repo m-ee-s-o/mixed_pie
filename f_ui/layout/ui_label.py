@@ -1,13 +1,10 @@
 # import re
 from mathutils import Vector
 import blf
-from .ui_panel_layout import PanelLayout
 from .ui_box import Box
 
 
-class LabelBox:
-    inherit = PanelLayout.inherit
-
+class LabelBox(Box):
     def __init__(self, parent, text):
         self.adjustable = True
         self.text = str(text)
@@ -17,10 +14,7 @@ class LabelBox:
         self.label_color = (1, 1, 1, 1)
 
         # Set minimum size
-        blf.size(0, self.text_size)
-        # self.height = blf.dimensions(0, ")")[1]
-        self.height = blf.dimensions(0, self.text)[1]
-        self.width = blf.dimensions(0, self.text)[0]
+        self.width, self.height = self.get_label_dimensions(self.text)
 
     def make(self):
         self.label_dimensions = self.get_label_dimensions(self.text)
@@ -29,7 +23,8 @@ class LabelBox:
 
         if self.parent.height < self.label_dimensions.y:
             raise Exception("Height not enough for text.")
-        PanelLayout.center(self, x=getattr(self, "center_x", False), y=getattr(self, "center_y", False))
+        self.center(x=getattr(self, "center_x", False), y=getattr(self, "center_y", False))
+
         # self.bevel_radius = 0
         # Box.make(self)
 
@@ -39,6 +34,7 @@ class LabelBox:
 
     def draw(self):
         # Box.draw(self)
+
         origin = self.origin.copy()
         origin.y -= self.height  # Origin of self (element) is at top left, blf's is at bottom left
         text = self.text
@@ -54,8 +50,12 @@ class LabelBox:
             else:
                 text = ""
 
-        if self.center:
-            origin.x += (self.width / 2) - (self.get_label_dimensions(text).x / 2)
+        if self.is_center_aligned:
+            origin.x += (self.width / 2) - (self.label_dimensions.x / 2)
+
+        # blf origin is above the following characters lowest point
+        if any((text.find(c) != -1) for c in ('q', 'y', 'p', 'g', 'j', '(', ')')):
+            origin.y += 3 * self.ui_scale
 
         # print(self.text)
         blf.position(0, *origin, 0)

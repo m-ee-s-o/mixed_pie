@@ -42,36 +42,44 @@ class PanelLayout(Layout):
 
         if not relocate_cursor:
             # Top resize area
-            if Box.point_inside(None, event, (self.main_box.origin + Vector((0, self.MARGIN)), width, self.MARGIN * 2)):
+            if event.type == 'G' or Box.point_inside(None, event, (self.main_box.origin + Vector((0, self.MARGIN)), width, self.MARGIN * 2)):
                 self.attr_holder.hold = signature
                 context.window.cursor_modal_set('SCROLL_XY')
-                if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+                if event.type in {'G', 'LEFTMOUSE'} and event.value == 'PRESS':
                     self.attr_holder.main_box_relocate_cursor = event.cursor
                     self.attr_holder.initial_cursor = self.parent_modal_operator.cursor.copy()
+                    self.attr_holder.parse_dragmove_immediately_regardless_of_distance = True
+                    event.handled = True
+                    if event.type == 'G':
+                        event.set_mouse_press_release('PRESS', 'LEFTMOUSE')
+
             elif self.attr_holder.hold == signature:   # Since there are many elements that have this mechanism, put this condition so that wherever the mouse is, it would only execute this for one element
                 context.window.cursor_modal_restore()
                 self.attr_holder.hold = None
 
         if not relocate_cursor:
             return
+        event.handled = True
 
         match event.type:
-            case 'LEFTMOUSE' if event.value == 'RELEASE':
+            case 'LEFTMOUSE' if event.value in {'PRESS', 'RELEASE', 'DRAGRELEASE'}:
                 self.attr_holder.main_box_relocate_cursor = None
                 self.attr_holder.initial_cursor = None
+                self.attr_holder.parse_dragmove_immediately_regardless_of_distance = False
+
             case 'ESC' if event.value == 'PRESS':
                 self.parent_modal_operator.cursor = self.attr_holder.initial_cursor
                 self.attr_holder.initial_cursor = None
                 self.attr_holder.main_box_relocate_cursor = None
-                event.handled = True
-            case 'MOUSEMOVE':  # Put oustide of "if point_inside", since it can lag (e.g., executed when cursor is outside of area)
+                self.attr_holder.parse_dragmove_immediately_regardless_of_distance = False
+
+            case 'DRAGMOVE':  # Put oustide of "if point_inside", since it can lag (e.g., executed when cursor is outside of area)
                 current_cursor = event.cursor
                 initial_cursor = relocate_cursor
 
                 self.parent_modal_operator.cursor += current_cursor - initial_cursor
                 self.attr_holder.main_box_relocate_cursor = current_cursor
 
-                event.handled = True
                 self.reinitialize = True
 
     def call_modals(self, context, event):
@@ -157,12 +165,13 @@ class PanelLayout(Layout):
     def HorizontalSpacingManager(self):
         return self._HorizontalSpacingManager(self)
 
-    def adjust(self):
-        children = self.children
+    def adjust(self, start_from_this=None):
+        children = self.children[self.children.index(start_from_this):] if start_from_this else self.children
+
         if len(children) == 1:
             if getattr(children[0], "adjustable", False):
                 children[0].width = self.width - (self.MARGIN * 2)
-            else:
+            else:  # Center
                 children[0].origin.x = self.origin.x + (self.width / 2) - (children[0].width / 2)
 
         elif len(children) > 1:
@@ -171,6 +180,7 @@ class PanelLayout(Layout):
             adjustables = defaultdict(list)
             non_adjustables = defaultdict(list)
             child_groups = defaultdict(list)
+
             for child in children:
                 if getattr(child, "adjustable", False):
                     adjustables[child.origin.x].append(child)
@@ -228,8 +238,8 @@ class PanelLayout(Layout):
             height = 100 * self.ui_scale
         return Box(self, width, height, fill=fill, color=color)
 
-    def collection(self, id, collection, draw_item_func):
-        return Collection(self, id, collection, draw_item_func)
+    def collection(self, id, collection, draw_item_func, active_index_data, active_index_prop):
+        return Collection(self, id, collection, draw_item_func, active_index_data, active_index_prop)
 
     def label(self, text):
         return LabelBox(self, text)

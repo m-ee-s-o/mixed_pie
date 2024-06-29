@@ -17,9 +17,10 @@ class TextBox(LabelBox):
         PanelLayout.center(self, y=True)
         self.origin.y = y
         self.height = h
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and Box.point_inside(self, event):
+        if event.type == 'LEFTMOUSE' and event.value == 'DOUBLECLICK' and Box.point_inside(self, event):
             MXD_PT_Utils_OneTextProp.data_property = self.data_property
             bpy.ops.wm.call_panel(name="MXD_PT_Utils_OneTextProp")
+            event.handled = True
 
 
 class MXD_PT_Utils_OneTextProp(Panel):

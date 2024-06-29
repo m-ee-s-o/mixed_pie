@@ -102,6 +102,9 @@ def make_box(origin, width, height, pattern='LINE', bevel_radius=0, bevel_segmen
 
     if return_corners:
         ret.append(corners)
+    
+    if len(ret) == 1:
+        return ret[0]
 
     return ret
 
@@ -128,13 +131,14 @@ def point_inside(self, point: EventTypeIntercepter | Vector, originWidthHeight: 
         point = point.cursor
     else:
         raise NotImplementedError
-
+    
+    # Truncate values since they'd have decimal due to screen scaling
     if originWidthHeight:
         origin, width, height = originWidthHeight
-        if origin[0] <= point.x <= origin[0] + width  \
-                and origin[1] - height <= point.y <= origin[1]:
+        if int(origin[0]) <= point.x <= int(origin[0]) + width  \
+                and int(origin[1]) - height <= point.y <= int(origin[1]):
             return True
     else:
-        if self.left <= point.x <= self.right  \
-                and self.bottom <= point.y <= self.top:
+        if int(self.left) <= point.x <= int(self.right)  \
+                and int(self.bottom) <= point.y <= int(self.top):
             return True

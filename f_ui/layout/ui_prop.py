@@ -45,9 +45,9 @@ class Prop(Bounds):
             return
         prop_id = f"{self.data.__class__.__name__}.{self.property}"
         if (id_ := self.attr_holder.drag[0]):
-            if event.type == 'MOUSEMOVE' and id_ != prop_id:
+            if event.type == 'DRAGMOVE' and id_ != prop_id:
                 return
-            elif event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            elif event.type == 'LEFTMOUSE' and event.value == 'DRAGRELEASE':
                 self.attr_holder.drag = ("", "")
                 event.handled = True
 
@@ -59,12 +59,12 @@ class Prop(Bounds):
                     self.color = (0.4, 0.4, 0.4, 1)
 
                     if event.type == 'LEFTMOUSE':
-                        if event.value == 'PRESS':
+                        if event.value in {'PRESS', 'DOUBLECLICK'}:
                             self.value = not getattr(self.data, self.property)
                             setattr(self.data, self.property, self.value)
                             self.attr_holder.drag = (prop_id, self.value)
                             event.handled = 'CLICKED'
-                    elif event.type == 'MOUSEMOVE' and id_:
+                    elif event.type == 'DRAGMOVE' and id_:
                         setattr(self.data, self.property, self.attr_holder.drag[1])
                         event.handled = True
 
@@ -79,15 +79,19 @@ class CollectionProp(Prop):
 
     def modal(self, context, event):
         super().modal(context, event)
-        # Specifically for bone collections as of now
-        if self.collection.bl_rna.identifier != "BoneCollections":
-            return
+
         if event.handled == 'CLICKED':
+            match self.collection.bl_rna.identifier:
+                case "BoneCollections":
+                    collection = recur_get_bone_collections(self.collection)
+                case _:
+                    collection = self.collection
+
             if event.shift:
-                for i in recur_get_bone_collections(self.collection):
+                for i in collection:
                     setattr(i.path_resolve(self.base) if self.base else i, self.property, self.value)
             elif event.alt:
-                for i in recur_get_bone_collections(self.collection):
+                for i in collection:
                     if i != self.item:
                         setattr(i.path_resolve(self.base) if self.base else i, self.property, self.value)
                     else:

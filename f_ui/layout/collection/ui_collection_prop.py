@@ -1,11 +1,10 @@
-from math import ceil
 import bpy
 from bpy.types import PropertyGroup
-from bpy.props import BoolProperty, CollectionProperty, EnumProperty, IntProperty, StringProperty
+from bpy.props import CollectionProperty, EnumProperty, IntProperty, StringProperty
 from ....a_utils.utils_prop import MXD_CollT_Name
 
 
-class MXD_Obj_CollT_UI_Collection_Column(PropertyGroup):
+class MXD_Obj_CollT_UI_Collection_AutoColumn(PropertyGroup):
     def get_start_index(self):
         if self.get("_start_index"):
             # Validate since start_index can make IndexError (in CollectionColumnn.make_cllection_items) when item_count changes
@@ -29,13 +28,16 @@ class MXD_Obj_CollT_UI_Collection_Column(PropertyGroup):
 
     name: StringProperty(name="", default="Column")
     width: IntProperty(name="", get=lambda self: self.get("_width", 400), set=set_width)
-    minimum_width = 150
+    minimum_width: IntProperty(default=150)
     item_per_column: IntProperty()
     item_count: IntProperty()
     column_index: IntProperty()
     start_index: IntProperty(get=get_start_index, set=set_start_index)
-    items: CollectionProperty(type=MXD_CollT_Name)
     active_item_index: IntProperty()
+
+
+class MXD_Obj_CollT_UI_Collection_CustomColumn(MXD_Obj_CollT_UI_Collection_AutoColumn):
+    items: CollectionProperty(type=MXD_CollT_Name)
 
 
 COLUMN_DEFINITION_TYPE = (('AUTOMATIC', "Automatic", "Automatically put items in columns according to settings"),
@@ -92,11 +94,11 @@ class MXD_Pref_UI_Collection(PropertyGroup):
     default_item_per_column: IntProperty(default=15)
     max_column_amount: IntProperty(name="Column Amount", get=get_max_column_amount, set=set_max_column_amount)
     auto_item_per_column: IntProperty(name="Max Items per Column", get=get_auto_item_per_column, set=set_auto_item_per_column)
-    auto_columns: CollectionProperty(type=MXD_Obj_CollT_UI_Collection_Column)
+    auto_columns: CollectionProperty(type=MXD_Obj_CollT_UI_Collection_AutoColumn)
     # Custom
     custom_item_per_column: IntProperty(name="Max Items per Column", get=get_custom_item_per_column, set=set_custom_item_per_column)
     column_definition_type: EnumProperty(items=COLUMN_DEFINITION_TYPE, default='CUSTOM')
-    custom_columns: CollectionProperty(type=MXD_Obj_CollT_UI_Collection_Column)
+    custom_columns: CollectionProperty(type=MXD_Obj_CollT_UI_Collection_CustomColumn)
     active_column_index: IntProperty()
 
 
@@ -109,7 +111,8 @@ class MXD_Pref_UICollection_List(PropertyGroup):
 
 
 classes = (
-    MXD_Obj_CollT_UI_Collection_Column,
+    MXD_Obj_CollT_UI_Collection_AutoColumn,
+    MXD_Obj_CollT_UI_Collection_CustomColumn,
     MXD_Pref_UI_Collection,
     MXD_UICollection_PointT_UI_Collection,
     MXD_Pref_UICollection_List,

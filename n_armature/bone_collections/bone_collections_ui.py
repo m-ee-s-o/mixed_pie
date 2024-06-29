@@ -1,6 +1,7 @@
 import bpy
 from bpy.types import Operator, Panel, UILayout, UIList
 from ...f_ui.utils_panel import MXD_OT_Utils_Panel
+from ...f_ui.layout.ui_panel_layout import PanelLayout
 from .bone_collections_op import Base_BoneCollectionsOps
 
 
@@ -18,16 +19,15 @@ class MXD_OT_Armature_BoneCollectionPanel(MXD_OT_Utils_Panel, Operator):
         for obj in {context.object, *context.selected_objects}:
             if obj.type == 'ARMATURE':
                 self.object_name = obj.name  # Used .name since there is a operator that uses undo (would produce ReferenceError upon undo if only obj)
-                break
-        self.collection_pref_panel = MXD_PT_BoneCollectionProperties
         return super().invoke(context, event)
 
-    def draw_structure(self, context, event, layout):
+    def draw_structure(self, context, event, layout: PanelLayout):
         layout.icon_scale = 0.8
 
         collections = bpy.data.objects[self.object_name].data.collections
 
-        ui_coll = layout.collection("bone_collection", collections, self.draw_collection_item)
+        ui_coll = layout.collection("bone_collection", collections, self.draw_collection_item, collections, "active_index")
+        ui_coll.collection_pref_panel = MXD_PT_BoneCollectionProperties
         layout.flow(horizontal=True)
 
         layout.icon_scale = 0.6
@@ -53,12 +53,8 @@ class MXD_OT_Armature_BoneCollectionPanel(MXD_OT_Utils_Panel, Operator):
                 hsm.operator("armature.collection_deselect", label="Deselect")
 
     def draw_collection_item(self, layout, collection, item):
-        # TODO: read double clicks, time.time()
-        ...
-        if collection.active == item:
-            layout.text(item, "name")
-        else:
-            layout.label(item.name)
+        txt = layout.text(item, "name")
+        txt.height = txt.parent.height
 
         ui_bcoll = bpy.context.preferences.addons[__package__.partition(".")[0]].preferences.ui_bone_collections
         if ui_bcoll.show_lock:
@@ -203,8 +199,8 @@ class MXD_PT_BoneCollectionProperties(Panel):
             col.separator(factor=0.5)
             row = col.row()
             row.template_list("MXD_UL_Item", "", active_column, "items", active_column, "active_item_index", sort_lock=True)
-            index_path = path + f"[{active_column_index}].active_item_index"
-            items_path = path + f"[{active_column_index}].items"
+            index_path = path + f".custom_columns[{active_column_index}].active_item_index"
+            items_path = path + f".custom_columns[{active_column_index}].items"
             active_item_index = active_column.active_item_index
 
             col = row.column(align=True)

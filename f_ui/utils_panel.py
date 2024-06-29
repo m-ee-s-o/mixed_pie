@@ -28,8 +28,8 @@ class MXD_OT_Utils_Panel:
 
         """
         context.area.tag_redraw()
-        event = EventTypeIntercepter(__event)
         layout = PanelLayout(self, self.cursor)
+        event = EventTypeIntercepter(__event, layout.ui_scale, self.attr_holder)
         self.draw_structure(context, event, layout)
 
         if not self.moved:  # Make it so that cursor is at the center of the panel when spawned
@@ -57,7 +57,7 @@ class MXD_OT_Utils_Panel:
 
         if event.handled:
             return {'RUNNING_MODAL'}
-        
+
         match event.type:
             # case 'MOUSEMOVE':
             #     return {'PASS_THROUGH'}
