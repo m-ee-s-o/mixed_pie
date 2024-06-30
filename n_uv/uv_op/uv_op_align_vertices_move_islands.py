@@ -3,10 +3,10 @@ import bpy
 from bpy.types import Operator
 from bpy.props import EnumProperty
 import bmesh
-from .uv_utils import Base_UVOpsPoll, IslandOffset, SearchUV, get_uvLayer_bmFaces
+from .uv_utils import Base_UVOpsPoll, SpaceBetweenIslands, SearchUV, get_uvLayer_bmFaces
 
 
-class MXD_OT_UV_AlignVerticesMoveIslands(Base_UVOpsPoll, IslandOffset, Operator):
+class MXD_OT_UV_AlignVerticesMoveIslands(Base_UVOpsPoll, SpaceBetweenIslands, Operator):
     bl_idname = "uv.align_vertices_move_islands"
     bl_label = "Align Vertices, Move Islands"
     bl_options = {'REGISTER', 'UNDO'}
@@ -35,10 +35,10 @@ class MXD_OT_UV_AlignVerticesMoveIslands(Base_UVOpsPoll, IslandOffset, Operator)
         col1.separator(factor=0.25)
         col2.separator(factor=0.25)
 
-        col1.label(text=f"Offset: {'X' if (self.axis == 0) else 'Y'}")
+        col1.label(text=f"Islands Space: {'X' if (self.axis == 0) else 'Y'}")
         row = col2.row()
-        row.prop(self, "island_offset", index=self.axis)
-        row.prop(self, "reset_island_offset", icon='FILE_REFRESH', emboss=False)
+        row.prop(self, "space_between_islands", index=self.axis)
+        row.prop(self, "reset_space_between_islands", icon='FILE_REFRESH', emboss=False)
 
     def invoke(self, context, event):
         objs = {context.object, *context.selected_objects}
@@ -73,9 +73,9 @@ class MXD_OT_UV_AlignVerticesMoveIslands(Base_UVOpsPoll, IslandOffset, Operator)
 
     def execute(self, context):
         direction = self.direction
-        island_offset = self.get_island_offset(context)
+        space_between_islands = self.get_space_between_islands(context)
         if direction in {'TOP', 'RIGHT'}:
-            island_offset *= -1
+            space_between_islands *= -1
 
         islands = [island for islands in self.objsData_islands.values() for island in islands]
         match direction:
@@ -96,7 +96,7 @@ class MXD_OT_UV_AlignVerticesMoveIslands(Base_UVOpsPoll, IslandOffset, Operator)
                 if island is origin_island:
                     continue
 
-                offset = origin_island.uv_of_active[axis] - island.uv_of_active[axis] + island_offset[axis]
+                offset = origin_island.uv_of_active[axis] - island.uv_of_active[axis] + space_between_islands[axis]
 
                 for uvVectors in island.indicesToLoops.get_uv_uvVectors(uv_layer, bm_faces).values():
                     for uvVector in uvVectors:

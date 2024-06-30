@@ -4,10 +4,10 @@ from bpy.types import Operator
 from bpy.props import BoolProperty, EnumProperty
 import bmesh
 from mathutils import Vector
-from .uv_utils import Base_UVOpsPoll, IndicesToLoops, IslandOffset, get_center_uvs, get_uvLayer_bmFaces, set_uv_uvVectors
+from .uv_utils import Base_UVOpsPoll, IndicesToLoops, SpaceBetweenIslands, get_center_uvs, get_uvLayer_bmFaces, set_uv_uvVectors
 
 
-class MXD_OT_UV_SnapToBoundary(Base_UVOpsPoll, IslandOffset, Operator):
+class MXD_OT_UV_SnapToBoundary(Base_UVOpsPoll, SpaceBetweenIslands, Operator):
     bl_idname = "uv.snap_to_boundary"
     bl_label = "Snap To Boundary"
     bl_options = {'REGISTER', 'UNDO'}
@@ -49,8 +49,8 @@ class MXD_OT_UV_SnapToBoundary(Base_UVOpsPoll, IslandOffset, Operator):
 
         col1.label(text="Offset")
         row = col2.row()
-        row.column().prop(self, "island_offset")
-        row.prop(self, "reset_island_offset", icon='FILE_REFRESH', emboss=False)
+        row.column().prop(self, "space_between_islands")
+        row.prop(self, "reset_space_between_islands", icon='FILE_REFRESH', emboss=False)
 
     def invoke(self, context, event):
         objs = {context.object, *context.selected_objects}
@@ -104,12 +104,12 @@ class MXD_OT_UV_SnapToBoundary(Base_UVOpsPoll, IslandOffset, Operator):
             case 'BOTTOM_RIGHT':
                 origin = (max_bounds.x, min_bounds.y)
 
-        island_offset = self.get_island_offset(context)
+        space_between_island_and_bound = self.get_space_between_islands(context, uv_bounds=True)
         for i in range(2):
             if bound_point_uv[i] == 1:
-                island_offset[i] *= -1
+                space_between_island_and_bound[i] *= -1
 
-        offset = bound_point_uv - Vector(origin) + island_offset
+        offset = bound_point_uv - Vector(origin) + space_between_island_and_bound
         if not self.snap_to_center:
             match direction:
                 case 'TOP' | 'BOTTOM':

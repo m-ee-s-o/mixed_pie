@@ -29,27 +29,31 @@ class Base_UVOpsPoll:
         return not context.scene.tool_settings.use_uv_select_sync
 
 
-class IslandOffset:
-    def island_offset_set(self, value):
-        self.value_island_offset = value
-        self.is_island_offset_set = True
+class SpaceBetweenIslands:
+    def space_between_islands_set(self, value):
+        self.value_space_between_islands = value
+        self.is_space_between_islands_set = True
 
-    def reset_island_offset_update(self, context):
-        self.is_island_offset_set = False
+    def reset_space_between_islands_update(self, context):
+        self.is_space_between_islands_set = False
 
-    is_island_offset_set: BoolProperty()
-    reset_island_offset: BoolProperty(name="", update=reset_island_offset_update,
-                                      description="Recalculate offset base on image size")
-    value_island_offset: FloatVectorProperty(size=2)
-    island_offset: FloatVectorProperty(name="", size=2, subtype='XYZ', get=lambda self: self.value_island_offset,
-                                       set=island_offset_set, description="In px")
+    is_space_between_islands_set: BoolProperty()
+    reset_space_between_islands: BoolProperty(name="", update=reset_space_between_islands_update,
+                                      description="Recalculate space based on image size")
+    value_space_between_islands: FloatVectorProperty(size=2)
+    space_between_islands: FloatVectorProperty(name="", size=2, subtype='XYZ', get=lambda self: self.value_space_between_islands,
+                                       set=space_between_islands_set, description="In px")
 
-    def get_island_offset(self, context):
+    def get_space_between_islands(self, context, uv_bounds=False):
         img = context.space_data.image
         img_size = img.size if img else (256, 256)
-        offset = self.value_island_offset
-        if not self.is_island_offset_set:
-            offset[:] = Vector(img_size) / 128
+        offset = self.value_space_between_islands
+        if not self.is_space_between_islands_set:
+            # http://wiki.polycount.com/wiki/Edge_padding
+            # https://blenderartists.org/t/island-margins-in-what-units-is-it/667242
+            # For 256x256, there's 2px margin for each island and it would be 4px for the space between two islands (256 / 64 == 4)
+            # As for the space between an island and uv_bounds, since that only one island only half is needed (256 / 128 == 2)
+            offset[:] = Vector(img_size) / (64 if not uv_bounds else 128)
         return Vector(offset[i] / img_size[i] for i in range(2))
 
 

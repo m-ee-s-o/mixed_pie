@@ -6,7 +6,7 @@ from mathutils import Vector
 import bmesh
 from .uv_utils import (
     Base_UVOpsPoll,
-    IslandOffset,
+    SpaceBetweenIslands,
     OrderedIndicesToLoops,
     SearchUV,
     get_center_uvs,
@@ -15,7 +15,7 @@ from .uv_utils import (
 from ...f_ui.utils_pie_menu import MXD_OT_Utils_PieMenu
 
 
-class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, Operator):
+class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_PieMenu, Operator):
     bl_idname = "uv.distribute"
     bl_label = "Distribute"
     bl_options = {'REGISTER', 'UNDO', 'INTERNAL'}
@@ -126,15 +126,15 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
                 for i in range(2):
                     if island_axis[i]:
                         row = col.row()
-                        row.prop(self, "island_offset", index=i)
+                        row.prop(self, "space_between_islands", index=i)
                         if i == 0:
-                            s_col1.label(text="Offset: X")
-                            row.prop(self, "reset_island_offset", icon='FILE_REFRESH', emboss=False)
+                            s_col1.label(text="Islands Space: X")
+                            row.prop(self, "reset_space_between_islands", icon='FILE_REFRESH', emboss=False)
                         else:
                             x_is_off = (not island_axis[1 - i])
-                            s_col1.label(text="Offset: Y" if x_is_off else "Y")
+                            s_col1.label(text="Islands Space: Y" if x_is_off else "Y")
                             if x_is_off:
-                                row.prop(self, "reset_island_offset", icon='FILE_REFRESH', emboss=False)
+                                row.prop(self, "reset_space_between_islands", icon='FILE_REFRESH', emboss=False)
                             else:
                                 row.label(icon='BLANK1')
 
@@ -234,7 +234,7 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
                     origin[:] = min_bounds if is_ascending else max_bounds
 
             self.origin = origin
-            self.padding = (max_bounds if is_ascending else min_bounds) - origin
+            self.space_from_origin_to_bounds = (max_bounds if is_ascending else min_bounds) - origin
 
     def invoke(self, context, event):
         self.objs = {context.object, *context.selected_objects}
@@ -471,9 +471,9 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
             self.report({'INFO'}, "There must be 2 or more selections.")
             return {'CANCELLED'}
 
-        island_offset = self.get_island_offset(context)
+        space_between_islands = self.get_space_between_islands(context)
         if not self.is_ascending:
-            island_offset *= -1
+            space_between_islands *= -1
 
         for data, obj_islands in self.objsData_islands.items():
             uv_layer, bm_faces = get_uvLayer_bmFaces(data)
@@ -489,7 +489,6 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
             sorted_islands = sorted(islands, key=lambda island: island.origin[i], reverse=(not self.is_ascending))
             basis_origin = list(sorted_islands[0].origin)
             for index, island in enumerate(sorted_islands):
-                padding = island.padding[i]
                 if index != 0:
                     offset = basis_origin[i] - island.origin[i]
 
@@ -499,7 +498,7 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, IslandOffset, MXD_OT_Utils_PieMenu, O
                             if self.island_align and not self.island_axis[other]:
                                 uvVector[other] += basis_origin[other] - island.origin[other]
 
-                basis_origin[i] += padding + island_offset[i]
+                basis_origin[i] += island.space_from_origin_to_bounds[i] + space_between_islands[i]
 
         for data in self.objsData_islands.keys():
             bmesh.update_edit_mesh(data)
