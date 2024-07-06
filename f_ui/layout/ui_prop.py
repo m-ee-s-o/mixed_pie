@@ -9,7 +9,6 @@ from ...a_utils.utils_func import recur_get_bone_collections
 
 
 class Prop(Bounds):
-    inherit = PanelLayout.inherit
     make = UI_Operator.make
     draw = UI_Operator.draw
     snap_to = Box.snap_to

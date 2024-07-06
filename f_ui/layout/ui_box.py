@@ -26,14 +26,13 @@ class Bounds:
 
 class Box(Bounds):
     point_inside = point_inside
-    inherit = PanelLayout.inherit
     center = PanelLayout.center
     icon = PanelLayout.icon
     label = PanelLayout.label
     recur_offset_children_origin = PanelLayout.recur_offset_children_origin
 
     def __init__(self, parent, width, height, fill=True, color=(1, 1, 1, 1)):
-        self.inherit(parent)
+        PanelLayout.inherit(self, parent)
         self.width = width
         self.height = height
         self.children = []

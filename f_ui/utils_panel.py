@@ -6,17 +6,16 @@ from .utils.utils import Attr_Holder, EventTypeIntercepter
 
 class MXD_OT_Utils_Panel:
     def invoke_panel(self, context, event):
-        self.cursor = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.panel_origin = Vector((event.mouse_region_x, event.mouse_region_y))
         self.attr_holder = Attr_Holder()
         self.moved = False
 
-        if not hasattr(self, "handler"):
-            context.window_manager.modal_handler_add(self)
-            self.space_data = context.space_data.__class__
-            self.handler = self.space_data.draw_handler_add(self.draw_panel, (), 'WINDOW', 'POST_PIXEL')
+        context.window_manager.modal_handler_add(self)
+        self.space_data = context.space_data.__class__
+        self.handler = self.space_data.draw_handler_add(self.draw_panel, (), 'WINDOW', 'POST_PIXEL')
         return {'RUNNING_MODAL'}
 
-    def panel_listener(self, context, __event):
+    def panel_listener(self, context, event):
         """
 
         FLOW
@@ -28,27 +27,28 @@ class MXD_OT_Utils_Panel:
 
         """
         context.area.tag_redraw()
-        layout = PanelLayout(self, self.cursor)
-        event = EventTypeIntercepter(__event, layout.ui_scale, self.attr_holder)
+        layout = PanelLayout(self, self.panel_origin)
+        if not isinstance(event, EventTypeIntercepter):
+            event = EventTypeIntercepter(event, layout.ui_scale, self.attr_holder)
         self.draw_structure(context, event, layout)
 
-        if not self.moved:  # Make it so that cursor is at the center of the panel when spawned
+        if not self.moved:  # Make it so that panel_origin is at the center of the panel when spawned
             if layout.children:
                 rightmost = max(layout.children, key=lambda child: child.origin.x + child.width)
                 bottommost = min(layout.children, key=lambda child: child.origin.y - child.height)
                 width = rightmost.origin.x + rightmost.width + layout.MARGIN - layout.origin.x
                 height = layout.origin.y - bottommost.origin.y + bottommost.height + layout.MARGIN
-                self.cursor.x -= width / 2
-                self.cursor.y += height / 2
+                self.panel_origin.x -= width / 2
+                self.panel_origin.y += height / 2
 
                 self.moved = True
-                layout = PanelLayout(self, self.cursor)
+                layout = PanelLayout(self, self.panel_origin)
                 self.draw_structure(context, event, layout)
 
         layout.call_modals(context, event)
 
         if layout.reinitialize:
-            layout = PanelLayout(self, self.cursor)
+            layout = PanelLayout(self, self.panel_origin)
             self.draw_structure(context, event, layout)
             layout.call_modals(context, event)
 
@@ -59,19 +59,10 @@ class MXD_OT_Utils_Panel:
             return {'RUNNING_MODAL'}
 
         match event.type:
-            # case 'MOUSEMOVE':
-            #     return {'PASS_THROUGH'}
-
-            # case 'LEFTMOUSE' if event.value == 'PRESS':
-
-
             case 'RIGHTMOUSE' | 'ESC' if event.value == 'PRESS':
-                self.clean()
+                if isinstance(self, MXD_OT_Utils_Panel):
+                    self.clean()
                 return {'CANCELLED'}
-            
-            # case _ as e if 'MOUSE' in e:
-            #     return {'PASS_THROUGH'}
-
         return {'RUNNING_MODAL'}
 
     def clean(self):

@@ -44,7 +44,7 @@ class PieMenuLayout(Layout):
                 if (i != 0) and (self.cursor_angle < 0):
                     self.cursor_angle += 360
                 if (zone_angle * i - offset) < self.cursor_angle < (zone_angle * (i + 1) - offset):
-                    self.buttons[i].active = True
+                    self.buttons[i].is_active = True
                     break
         
         increment = 360 / len(self.buttons)

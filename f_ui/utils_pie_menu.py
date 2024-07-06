@@ -21,9 +21,9 @@ class MXD_OT_Utils_PieMenu:
             context.window_manager.modal_handler_add(self)
             self.space_data = context.space_data.__class__
             self.handler = self.space_data.draw_handler_add(self.draw_pie, (), 'WINDOW', 'POST_PIXEL')
-            self.pie_subclassed = False
-        else:
-            self.pie_subclassed = True
+        #     self.pie_subclassed = False
+        # else:
+        #     self.pie_subclassed = True
             # TODO: Do something with using these in middle of another modal, cause it would quit all
             # TODO: Put op bl_label at center
 
@@ -43,15 +43,17 @@ class MXD_OT_Utils_PieMenu:
             case 'LEFTMOUSE' if event.value == 'PRESS':
                 self.space_data.draw_handler_remove(self.handler, 'WINDOW')
                 for button in layout.buttons:
-                    if button.active:
+                    if button.is_active:
                         self.button_effects(context, button)
-                        return {'FINISHED'} if not self.pie_subclassed else None
-                else:
-                    return {'CANCELLED'} if not self.pie_subclassed else None
+                        return {'FINISHED'}
+                        # return {'FINISHED'} if not self.pie_subclassed else None
+                # else:
+                    # return {'CANCELLED'} if not self.pie_subclassed else None
 
             case 'RIGHTMOUSE' | 'ESC' if event.value == 'PRESS':
                 self.space_data.draw_handler_remove(self.handler, 'WINDOW')
-                return {'CANCELLED'} if not self.pie_subclassed else None
+                # return {'CANCELLED'} if not self.pie_subclassed else None
+                return {'CANCELLED'}
 
         return {'RUNNING_MODAL'}
 

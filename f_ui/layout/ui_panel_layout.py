@@ -47,7 +47,7 @@ class PanelLayout(Layout):
                 context.window.cursor_modal_set('SCROLL_XY')
                 if event.type in {'G', 'LEFTMOUSE'} and event.value == 'PRESS':
                     self.attr_holder.main_box_relocate_cursor = event.cursor
-                    self.attr_holder.initial_cursor = self.parent_modal_operator.cursor.copy()
+                    self.attr_holder.initial_origin = self.parent_modal_operator.panel_origin.copy()
                     self.attr_holder.parse_dragmove_immediately_regardless_of_distance = True
                     event.handled = True
                     if event.type == 'G':
@@ -64,12 +64,12 @@ class PanelLayout(Layout):
         match event.type:
             case 'LEFTMOUSE' if event.value in {'PRESS', 'RELEASE', 'DRAGRELEASE'}:
                 self.attr_holder.main_box_relocate_cursor = None
-                self.attr_holder.initial_cursor = None
+                self.attr_holder.initial_origin = None
                 self.attr_holder.parse_dragmove_immediately_regardless_of_distance = False
 
             case 'ESC' if event.value == 'PRESS':
-                self.parent_modal_operator.cursor = self.attr_holder.initial_cursor
-                self.attr_holder.initial_cursor = None
+                self.parent_modal_operator.panel_origin = self.attr_holder.initial_origin
+                self.attr_holder.initial_origin = None
                 self.attr_holder.main_box_relocate_cursor = None
                 self.attr_holder.parse_dragmove_immediately_regardless_of_distance = False
 
@@ -77,7 +77,7 @@ class PanelLayout(Layout):
                 current_cursor = event.cursor
                 initial_cursor = relocate_cursor
 
-                self.parent_modal_operator.cursor += current_cursor - initial_cursor
+                self.parent_modal_operator.panel_origin += current_cursor - initial_cursor
                 self.attr_holder.main_box_relocate_cursor = current_cursor
 
                 self.reinitialize = True
@@ -250,17 +250,20 @@ class PanelLayout(Layout):
     def icon(self, id):
         return IconBox(self, id)
 
-    def operator(self, id_name, label="", icon=None, emboss=True):
-        return UI_Operator(self, id_name, label, icon, emboss)
+    def operator(self, id_name, label="", icon=None, emboss=True, shortcut=None):
+        return UI_Operator(self, id_name, label, icon, emboss, shortcut)
 
     def prop(self, data, property, label="", icon=None, emboss=True):
         return Prop(self, data, property, label, icon, emboss)
+    
+    def button(self, label, func, icon=None, emboss=True, shortcut=None):
+        return PanelButton(self, label, func, icon, emboss, shortcut)
 
 
 def register():
     # Prevent circular import by importing the following after everything is done importing.
     # It doesn't matter if these are imported last since they're only needed at runtime at function scope
-    global Box, LabelBox, TextBox, Collection, IconBox, UI_Operator, Prop
+    global Box, LabelBox, TextBox, Collection, IconBox, UI_Operator, Prop, PanelButton
     from .ui_box import Box
     from .ui_label import LabelBox
     from .ui_text import TextBox
@@ -268,3 +271,4 @@ def register():
     from .ui_icon import IconBox
     from .ui_operator import UI_Operator
     from .ui_prop import Prop
+    from .ui_button import PanelButton

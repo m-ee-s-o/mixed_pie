@@ -55,7 +55,7 @@ class LabelBox(Box):
 
         # blf origin is above the following characters lowest point
         if any((text.find(c) != -1) for c in ('q', 'y', 'p', 'g', 'j', '(', ')')):
-            origin.y += 3 * self.ui_scale
+            origin.y += 2 * self.ui_scale
 
         # print(self.text)
         blf.position(0, *origin, 0)

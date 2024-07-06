@@ -18,7 +18,6 @@ from ....a_utils.utils_func import recur_get_bone_collections, recur_get_bcoll_c
 
 class Collection(Bounds):
     # msgbus = set()
-    inherit = PanelLayout.inherit
     custom_spacing_between_children = 0
 
     def __init__(self, parent, id, collection, draw_item_func, active_index_data, active_index_prop):
@@ -301,7 +300,6 @@ class Collection(Bounds):
         gpu.state.line_width_set(1)
 
 class CollectionColumn(Bounds):
-    inherit = PanelLayout.inherit
     custom_spacing_between_children = 0
 
     def __init__(self, parent, items, properties=None):
@@ -527,7 +525,6 @@ class CollectionScrollBar:
 
 
 class CollectionItem(Bounds):
-    inherit = PanelLayout.inherit
     adjustable = True
 
     def __init__(self, *args, **kwargs):

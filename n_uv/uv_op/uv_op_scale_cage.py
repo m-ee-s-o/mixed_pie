@@ -7,6 +7,8 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from ...a_utils.utils_func import get_center, get_input_keys
 from ...f_ui.utils.utils_box import make_box
+from ...f_ui.utils_panel import MXD_OT_Utils_Panel
+from ...f_ui.utils.utils import Attr_Holder, EventTypeIntercepter
 from .uv_utils import Base_UVOpsPoll, Modal_Get_UV_UvVectors, IndicesToLoops, SearchUV
 
 
@@ -290,10 +292,10 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
         self.input_keys = get_input_keys()
 
         DEV_DPI = 72
-        scale = (context.preferences.system.dpi / DEV_DPI)
-        self.POINT_SIZE = 7 * scale
+        self.ui_scale = (context.preferences.system.dpi / DEV_DPI)
+        self.POINT_SIZE = 7 * self.ui_scale
 
-        self.toggle_draw_widget = True
+        self.is_widget_shown = True
         self.toggle_free_mode = False
 
         self.in_area = False
@@ -310,12 +312,10 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
 
         context.window_manager.modal_handler_add(self)
         self.handler = bpy.types.SpaceImageEditor.draw_handler_add(self.draw_widget, (), 'WINDOW', 'POST_PIXEL')
+        self.attr_holder = Attr_Holder()
         return {'RUNNING_MODAL'}
 
     def get_selection_groups(self, context, append=False, undo=True, action=None):
-        DEV_DPI = 72
-        ui_scale = (context.preferences.system.dpi / DEV_DPI)
-
         objs = {context.object, *context.selected_objects}
         selection_groups = self.selection_groups
         past_len = len(selection_groups)
@@ -347,7 +347,7 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                                                                                 active_only=True)
                         loops_done.update(loops)
                         self.active_loops.update(loops)
-                        selection_groups.append(self.SelectionGroup(bm, {data: indicesToLoops}, ui_scale))            
+                        selection_groups.append(self.SelectionGroup(bm, {data: indicesToLoops}, self.ui_scale))            
         else:
             objs_bm = set()
             objsData_indicesToLoops = {}
@@ -376,7 +376,7 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                     objsData_indicesToLoops[data] = indicesToLoops
 
             if objsData_indicesToLoops:
-                group = self.SelectionGroup(tuple(objs_bm), objsData_indicesToLoops, ui_scale)
+                group = self.SelectionGroup(tuple(objs_bm), objsData_indicesToLoops, self.ui_scale)
                 selection_groups.append(group)
 
         if past_len == len(selection_groups):
@@ -387,9 +387,16 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
         return selection_groups
 
     def modal(self, context, event):
+        event = EventTypeIntercepter(event, self.ui_scale, self.attr_holder)
         window = context.window
         area = context.area
         area.tag_redraw()
+        press = (event.value == 'PRESS')
+
+        if getattr(self, "finished", False):
+            bpy.types.SpaceImageEditor.draw_handler_remove(self.handler, 'WINDOW')
+            area.header_text_set(None)
+            return {'FINISHED'}
 
         if getattr(self, "error", None):
             bpy.types.SpaceImageEditor.draw_handler_remove(self.handler, 'WINDOW')
@@ -397,7 +404,21 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             area.header_text_set(None)
             return {'CANCELLED'}
 
-        press = (event.value == 'PRESS')
+        if event.type == 'RIGHTMOUSE' and press:
+            self.panel_shown = True
+            self.moved = False
+            self.panel_origin = event.cursor
+            event.handled = True
+            window.cursor_modal_restore()
+
+        if getattr(self, "panel_shown", False):
+            ret = MXD_OT_Utils_Panel.panel_listener(self, context, event)
+            if ret == {'CANCELLED'}:
+                self.panel_shown = False
+            return {'RUNNING_MODAL'}
+
+        if event.handled:
+            return {'RUNNING_MODAL'}
 
         if (event.type == 'Q') and press and event.shift:
             self.toggle_free_mode = not self.toggle_free_mode
@@ -422,7 +443,7 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             return {'PASS_THROUGH'}
 
         in_area = self.in_area
-        cursor = self.cursor = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.cursor = event.cursor
         init_cur_loc = self.init_cur_loc
 
         self.set_header_text(area)
@@ -485,24 +506,25 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
 
         match event.type:
             case 'MOUSEMOVE':
-                if init_cur_loc:
-                    match in_area:
-                        case 'POINT':
-                            self.scale_selection_groups()
-                        case 'CAGE':
-                            active_group.move_uv(self.get_offset())
-                else:
-                    self.check_cursor_location(context)
+                self.check_cursor_location(context)
+
+            case 'DRAGMOVE' if init_cur_loc:
+                match in_area:
+                    case 'POINT':
+                        self.scale_selection_groups()
+                    case 'CAGE':
+                        active_group.move_uv(self.get_offset())
 
             case 'LEFTMOUSE':
                 if event.alt:
-                    bpy.types.SpaceImageEditor.draw_handler_remove(self.handler, 'WINDOW')
-                    area.header_text_set(None)
-                    return {'FINISHED'}
+                    self.finished = True
+                    return {'RUNNING_MODAL'}
                 if press:
+                    self.attr_holder.parse_dragmove_immediately_regardless_of_distance = True
                     if in_area and not event.ctrl:
-                        self.init_cur_loc = cursor
+                        self.init_cur_loc = event.cursor
                 else:
+                    self.attr_holder.parse_dragmove_immediately_regardless_of_distance = False
                     self.confirm(context, event)
 
             case 'RET':
@@ -535,41 +557,10 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                 if init_cur_loc:
                     self.scale_selection_groups()
 
-            case 'E' if press and event.shift and event.ctrl:
-                for group in self.selection_groups:
-                    if group not in other_active:
-                        continue
-                    other_active.remove(group)
-                    group.index = None
-                    group.last_index = None
-                    group.is_center_origin = False
-                    group.origin = None
-
-            case 'E' if press and event.shift:  # Add all groups to other active with origin as center
-                for group in self.selection_groups:
-                    other_active.add(group)
-                    group.index = 0
-                    group.last_index = 0
-                    group.is_center_origin = True
-                    group.origin = group.center
-
-            case 'A' if press and event.shift:  # Group active vertices that are not in self.active_loops
-                self.get_selection_groups(context, append=True)
-
             case 'A' if press and (in_area != 'CAGE'):
                 self.lock_aspect_ratio = not self.lock_aspect_ratio
                 if init_cur_loc:
                     self.scale_selection_groups()
-
-            case 'S' if press:
-                action = self.Action_SelectionGroups(self)  # Also gets last self.separate_selection_groups
-                action.current_separate_selection_groups = not action.last_separate_selection_groups
-                self.separate_selection_groups = not self.separate_selection_groups
-                self.get_selection_groups(context, undo=False, action=action)
-                self.check_cursor_location(context)
-
-            case 'U' if press:
-                self.toggle_draw_widget = not self.toggle_draw_widget
 
             case 'Z' if press:
                 undo_stack = self.undo_stack
@@ -582,7 +573,52 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             case _ as e if 'MOUSE' in e:
                 return {'PASS_THROUGH'}
 
+            # case _ if press: 
+            #     return {'PASS_THROUGH'}
+
         return {'RUNNING_MODAL'}
+    
+    def draw_structure(self, context, event, layout):
+        def finish():
+            self.finished = True
+            self.panel_shown = False
+        def toggle_widget():
+            self.is_widget_shown = not self.is_widget_shown
+        def separate_selection_groups():
+            action = self.Action_SelectionGroups(self)  # Also gets last self.separate_selection_groups
+            action.current_separate_selection_groups = not action.last_separate_selection_groups
+            self.separate_selection_groups = not self.separate_selection_groups
+            self.get_selection_groups(context, undo=False, action=action)
+            self.check_cursor_location(context)
+        def unincluded_active_vertices():
+            self.get_selection_groups(context, append=True)
+            self.report({'INFO'}, "Done!")
+
+        def make_center_the_origin_for_all():
+            for group in self.selection_groups:
+                self.other_active.add(group)
+                group.index = None
+                group.last_index = None
+                group.is_center_origin = True
+                group.origin = group.center
+        def remove_all_origin():
+            for group in self.selection_groups:
+                if group not in self.other_active:
+                    continue
+                self.other_active.remove(group)
+                group.index = None
+                group.last_index = None
+                group.is_center_origin = False
+                group.origin = None
+
+        width = 500 * layout.ui_scale
+        layout.custom_spacing_between_children = 1
+        layout.button(f"{'Unite' if self.separate_selection_groups else 'Separate'} Selection Groups", separate_selection_groups, emboss=False).width = width
+        layout.button("Include Unincluded Active Vertices", unincluded_active_vertices, emboss=False).width = width
+        layout.button("All Center As Origin", make_center_the_origin_for_all, emboss=False).width = width
+        layout.button("Remove All Origin", remove_all_origin, emboss=False).width = width
+        layout.button(f"{'Hide' if self.is_widget_shown else 'Show'} Widget", toggle_widget, emboss=False).width = width
+        layout.button("Finish Operation", finish, emboss=False, shortcut="Alt + LeftClick").width = width
 
     def set_header_text(self, area):
         text = []
@@ -617,17 +653,15 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                 if axis[1]:
                     set_axis_text(1, offset, text)
 
-        text.append(f"{'        ' if text else ''}(S) Separate Selection Groups: {self.separate_selection_groups}")
         if in_area != 'CAGE':  # None or 'POINT'
             text.append(f"(A) Lock Aspect Ratio: {lock_aspect_ratio}")
         # TODO: Put a Key Map
-        # if in_area:
-        #     text.append("(X) (Y) Constraint Axis")
-        # if in_area == 'POINT':
-        #     text.append("(Shift) Center as Origin")
-        #     text.append("(Ctrl) Preserve Point State")
+        if in_area:
+            text.append("(X) (Y) Constraint Axis")
+        if in_area == 'POINT':
+            text.append("(Shift) Center as Origin")
+            text.append("(Ctrl + LeftClick) Preserve Point State")
 
-        text.append(f"(U) Toggle Widget: {self.toggle_draw_widget}")
         area.header_text_set("            ".join(text))
 
     def set_axis_text(self, index, answer_list, append_to=None, axis_label=True):
@@ -668,7 +702,6 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
         other_active = self.other_active
         selection_groups = self.selection_groups
         for group_index, group in enumerate(selection_groups):
-            points = group.get_points()
             for index, points_area in enumerate(group.get_points_area()):
                 x, y = [], []
                 for corner in points_area:
@@ -680,7 +713,7 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                     self.active_group = selection_groups[group_index]
                     group.index = index
                     if not group.is_center_origin:
-                        group.origin = Vector(points[index - 4])
+                        group.origin = Vector(group.get_points()[index - 4])
                     return
             else:
                 if group not in other_active:
@@ -688,21 +721,22 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                 elif group.last_index is not None:
                     group.index = group.last_index
                     if not group.is_center_origin:
-                        group.origin = Vector(points[group.index - 4])
+                        group.origin = Vector(group.get_points()[group.index - 4])
 
-                x, y = [], []
-                for corner in group.corners:
-                    x.append(corner.x)
-                    y.append(corner.y) 
-                if (min(x) < cursor.x < max(x)) and (min(y) < cursor.y < max(y)):
-                    window.cursor_modal_set('SCROLL_XY')
-                    self.in_area = 'CAGE'
-                    self.active_group = selection_groups[group_index]
-                    return
-        else:
-            self.in_area = False
-            self.active_group = None
-            window.cursor_modal_restore()
+        for group_index, group in enumerate(selection_groups):
+            x, y = [], []
+            for corner in group.corners:
+                x.append(corner.x)
+                y.append(corner.y) 
+            if (min(x) < cursor.x < max(x)) and (min(y) < cursor.y < max(y)):
+                window.cursor_modal_set('SCROLL_XY')
+                self.in_area = 'CAGE'
+                self.active_group = selection_groups[group_index]
+                return
+
+        self.in_area = False
+        self.active_group = None
+        window.cursor_modal_restore()
 
     def get_factor(self):
         active_group = self.active_group
@@ -791,6 +825,7 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
 
                 self.offset = [0, 0]
                 self.check_cursor_location(context)
+                bpy.ops.ed.undo_push(message=self.bl_label)
 
     def cancel_current_action(self, context):
         self.init_cur_loc = None
@@ -811,45 +846,55 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             group.revert_uvVectors(to_org)
 
     def draw_widget(self):
-        if not self.toggle_draw_widget:
-            return
-        vertices = []
-        active = []
-        points = []
-        for group in self.selection_groups:
-            ret = group.get_points_area()  # Recalculate group.vertices
-            if ret is None:
-                self.error = "Not Edit Mode"
-                self.report({'ERROR'}, self.error)
-                return
-            if not group.vertices:
-                raise NotImplementedError
-            if (verts := group.active):
-                active.extend(verts)
-            vertices.extend(group.vertices)
+        if self.is_widget_shown:
+            state = gpu.state
+            shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+            shader.uniform_float("color", (1, 1, 1, 1))
 
-            if (origin := group.origin):
-                points.append(origin)
+            # vertices = []
+            active = []
+            points = []
+            for group in self.selection_groups:
+                ret = group.get_points_area()  # Recalculate group.vertices
+                if ret is None:
+                    self.error = "Not Edit Mode"
+                    self.report({'ERROR'}, self.error)
+                    return
+                if not group.vertices:
+                    raise NotImplementedError
+                if (verts := group.active):
+                    active.extend(verts)
 
-        state = gpu.state
-        shader = gpu.shader.from_builtin('UNIFORM_COLOR')
-        shader.uniform_float("color", (1, 1, 1, 1))
-        lines = batch_for_shader(shader, 'LINES', {'pos': vertices})
-        lines.draw(shader)
+                # vertices.extend(group.vertices)
+                if group is self.active_group:
+                    shader.uniform_float("color", (0, 1, 0, 1))
 
-        if active:
-            lines = batch_for_shader(shader, 'LINES', {'pos': active})
-            state.line_width_set(2)
-            lines.draw(shader)
-            state.line_width_set(1)
+                lines = batch_for_shader(shader, 'LINES', {'pos': group.vertices})
+                lines.draw(shader)
+                shader.uniform_float("color", (1, 1, 1, 1))
 
-        if points:
-            vtr = bpy.context.region.view2d.view_to_region
-            points = [vtr(*point) for point in points]
-            points = batch_for_shader(shader, 'POINTS', {'pos': points})
-            state.point_size_set(self.POINT_SIZE)
-            points.draw(shader)
-            state.point_size_set(1)
+                if (origin := group.origin):
+                    points.append(origin)
+
+            # lines = batch_for_shader(shader, 'LINES', {'pos': vertices})
+            # lines.draw(shader)
+
+            if active:
+                lines = batch_for_shader(shader, 'LINES', {'pos': active})
+                state.line_width_set(2)
+                lines.draw(shader)
+                state.line_width_set(1)
+
+            if points:
+                vtr = bpy.context.region.view2d.view_to_region
+                points = [vtr(*point) for point in points]
+                points = batch_for_shader(shader, 'POINTS', {'pos': points})
+                state.point_size_set(self.POINT_SIZE)
+                points.draw(shader)
+                state.point_size_set(1)
+
+        if getattr(self, "panel_shown", False):
+            self.ui_layout.draw()
 
 
 def register():
