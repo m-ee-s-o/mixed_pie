@@ -54,7 +54,7 @@ class MXD_OT_UV_SnapToBoundary(Base_UVOpsPoll, SpaceBetweenIslands, Operator):
 
     def invoke(self, context, event):
         objs = {context.object, *context.selected_objects}
-        self.objData_indicesToLoops = {}
+        self.objName_indicesToLoops = {}
         for obj in objs:
             data = obj.data
             bm = bmesh.from_edit_mesh(data)
@@ -70,18 +70,19 @@ class MXD_OT_UV_SnapToBoundary(Base_UVOpsPoll, SpaceBetweenIslands, Operator):
                         indicesToLoops.construct(loop)
 
             if indicesToLoops:
-                self.objData_indicesToLoops[data] = indicesToLoops
+                self.objName_indicesToLoops[obj.name] = indicesToLoops
 
-        return self.execute(context) if self.objData_indicesToLoops else {'CANCELLED'}
+        return self.execute(context) if self.objName_indicesToLoops else {'CANCELLED'}
 
     def execute(self, context):
-        objData_uv_uvVectors = {}
-        for data, indicesToLoops in self.objData_indicesToLoops.items():
+        objName_uv_uvVectors = {}
+        for objName, indicesToLoops in self.objName_indicesToLoops.items():
+            data = bpy.data.objects[objName].data
             uv_layer, bm_faces = get_uvLayer_bmFaces(data)
-            objData_uv_uvVectors[data] = defaultdict(list)
-            set_uv_uvVectors(uv_layer, bm_faces, objData_uv_uvVectors[data], indicesToLoops)
+            objName_uv_uvVectors[objName] = defaultdict(list)
+            set_uv_uvVectors(uv_layer, bm_faces, objName_uv_uvVectors[objName], indicesToLoops)
 
-        uvs = [uv for uv_uvVectors in objData_uv_uvVectors.values() for uv in uv_uvVectors]
+        uvs = [uv for uv_uvVectors in objName_uv_uvVectors.values() for uv in uv_uvVectors]
         center, min_bounds, max_bounds = get_center_uvs(uvs, also_return_bounds=True)
 
         direction = self.direction
@@ -117,7 +118,8 @@ class MXD_OT_UV_SnapToBoundary(Base_UVOpsPoll, SpaceBetweenIslands, Operator):
                 case 'RIGHT' | 'LEFT':
                     offset[1] = 0
 
-        for data, uv_uvVectors in objData_uv_uvVectors.items():
+        for objName, uv_uvVectors in objName_uv_uvVectors.items():
+            data = bpy.data.objects[objName].data
             for uv, uvVectors in uv_uvVectors.items():
                 new_uv = Vector(uv) + offset
                 for uvVector in uvVectors:

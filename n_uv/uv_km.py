@@ -15,10 +15,16 @@ def register():
         kmi.properties.name = "MXD_MT_PIE_UVEditor_MarkEgde"
         addon_keymaps.append((km, kmi))
 
-        kmi = km.keymap_items.new('wm.call_menu_pie', 'RIGHTMOUSE', 'PRESS', key_modifier='W')
+        kmi = km.keymap_items.new('wm.call_menu_pie', 'R', 'PRESS', key_modifier='W')
         kmi.properties.name = "MXD_MT_PIE_UVEditor_Rotate_Flip"
         addon_keymaps.append((km, kmi))
 
         kmi = km.keymap_items.new('uv.select_linked_pick', 'LEFTMOUSE', 'PRESS', key_modifier='W')
         kmi.properties.extend = True
+        addon_keymaps.append((km, kmi))
+
+        kmi = km.keymap_items.new('uv.move_with_collision', 'G', 'PRESS', key_modifier='W')
+        addon_keymaps.append((km, kmi))
+
+        kmi = km.keymap_items.new('uv.uv_squares_wrapper', 'E', 'PRESS')
         addon_keymaps.append((km, kmi))

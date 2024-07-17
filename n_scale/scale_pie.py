@@ -49,28 +49,8 @@ class MXD_MT_PIE_Scale_UVE(Menu):
         pie.operator("scale.xyz_2d", text="Scale Y by 0", icon=icon).y = 0       # Top
         pie.operator("uv.scale_cage", icon='ORIENTATION_GLOBAL')                 # Top_left
         pie.operator("uv.snap_cursor", icon='PIVOT_CURSOR').target = 'SELECTED'  # Top_right
-        pie.operator("uv.distribute", icon='BLANK1')                             # Bottom_left
+        pie.operator("uv.average_islands_scale", icon='BLANK1')                  # Bottom_left
         pie.operator("uv.equalize_scale_xy", icon='BLANK1')                      # Bottom_right
-
-
-# class MXD_MT_PIE_Scale_UVE_1(Menu):
-#     bl_label = "Scale, UV Editor 1"
-
-#     def draw(self, context):
-#         layout = self.layout
-#         pie = layout.menu_pie()
-
-#         op = context.window_manager.operator_properties_last("scale.xyz_2d")
-#         icon = 'PIVOT_CURSOR' if op.pivot_cursor else 'BLANK1'
-
-#         pie.separator()  # Left
-#         pie.operator("scale.xyz_2d", text="Scale X by 1/3", icon=icon).x = 1/3  # Right
-#         pie.separator()  # Bottom
-#         pie.operator("scale.xyz_2d", text="Scale Y by 1/2", icon=icon).y = 1/2  # Top
-#         pie.operator("scale.xyz_2d", text="Scale X by 1/2", icon=icon).x = 1/2  # Top_left
-#         pie.operator("scale.xyz_2d", text="Scale Y by 1/3", icon=icon).y = 1/3  # Top_right
-#         pie.separator()  # Bottom_left
-#         pie.separator()  # Bottom_right
 
 
 class MXD_MT_PIE_Scale_NE(Menu):
@@ -93,7 +73,6 @@ class MXD_MT_PIE_Scale_NE(Menu):
 classes = (
     MXD_MT_PIE_Scale_VP,
     MXD_MT_PIE_Scale_UVE,
-    # MXD_MT_PIE_Scale_UVE_1,
     MXD_MT_PIE_Scale_NE,
 )
 

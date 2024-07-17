@@ -20,6 +20,16 @@ def get_center_uvs(uvs, also_return_bounds=False):
     return (center, min_bounds, max_bounds) if also_return_bounds else center
 
 
+def get_ordered_radial_loops_around_vertex(vertex):
+    """ Carousel around vertex. """
+    order = []
+    current = vertex.link_loops[0]
+    for _ in range(len(vertex.link_loops)):
+        order.append(current)
+        current = current.link_loop_radial_next.link_loop_next
+    return order
+
+
 class Base_UVOpsPoll:
     @classmethod
     def poll(cls, context):
@@ -60,13 +70,11 @@ class SpaceBetweenIslands:
 class Modal_Get_UV_UvVectors:
     def get_uv_uvVectors(self):
         self.uv_uvVectors = defaultdict(list)
-        self.bms = set()  # Needs to store these for modals
-        self.validity_tester = None
         for data, indicesToLoops in self.objsData_indicesToLoops.items():
-            uv_layer, bm_faces, bm = get_uvLayer_bmFaces(data, include_bm=True)
-            self.bms.add(bm)
+            uv_layer, bm_faces = get_uvLayer_bmFaces(data)
             indicesToLoops.get_uv_uvVectors(uv_layer, bm_faces, self.uv_uvVectors,
                                             include_validity_tester=self, embed_uvData=self)
+
 
 class Base_IndicesToLoops:
     @staticmethod
@@ -75,7 +83,7 @@ class Base_IndicesToLoops:
         for index, f_loop in enumerate(face.loops):
             if f_loop is loop:
                 return (face.index, index)
-
+            
     def get_uv_uvVectors(self, uv_layer, bm_faces, uv_uvVectors=None, include_validity_tester=False,
                          embed_uvData=False, embed=False):
         uv_uvVectors = uv_uvVectors if uv_uvVectors is not None else defaultdict(list)
@@ -100,8 +108,13 @@ class IndicesToLoops(Base_IndicesToLoops, defaultdict):
         self[faceIndex].append(faceLoopIndex)
 
 
-class OrderedIndicesToLoops(Base_IndicesToLoops, list):
-    """ [(faceIndex, (faceLoopIndex,)),...] """
+class SeriesIndicesToLoops(Base_IndicesToLoops, list):
+    """
+
+    [(faceIndex, (faceLoopIndex,)),...]
+        - A list of loop address that follows their edge loop series order.
+
+    """
     def items(self):
         return self
 
@@ -114,15 +127,12 @@ class OrderedIndicesToLoops(Base_IndicesToLoops, list):
             self.construct(loop)   
 
 
-def get_uvLayer_bmFaces(obj_data, include_bm=False):
+def get_uvLayer_bmFaces(obj_data):
     bm = bmesh.from_edit_mesh(obj_data)
     uv_layer = bm.loops.layers.uv.active
     bm_faces = bm.faces
     bm_faces.ensure_lookup_table()
-    if include_bm:
-        return (uv_layer, bm_faces, bm)
-    else:
-        return (uv_layer, bm_faces)
+    return (uv_layer, bm_faces)
 
 
 def set_uv_uvVectors(uv_layer, bm_faces, uv_uvVectors: DefaultDict[tuple, list], indicesToLoops: IndicesToLoops,
@@ -136,8 +146,9 @@ def set_uv_uvVectors(uv_layer, bm_faces, uv_uvVectors: DefaultDict[tuple, list],
             uvData.add(uv_data)
             uv = uv_data.uv
             uv_uvVectors[tuple(uv)].append(uv)
+
     if include_validity_tester:  # For modal operators with undo inside
-        include_validity_tester.validity_tester = (uv_layer, loop)
+        include_validity_tester.validity_test_loop = loop
     if embed_uvData:
         embed_uvData.uv_data = uvData
 
@@ -150,7 +161,7 @@ class SearchUV:
             return (prev_loops, is_line)
 
         loops = list(prev_loops.keys())
-        indicesToLoops = OrderedIndicesToLoops()
+        indicesToLoops = SeriesIndicesToLoops()
         indicesToLoops.bulk_construct(loops)
         return loops, indicesToLoops, is_line
 
@@ -234,7 +245,7 @@ class SearchUV:
             return cls.return_for_the_func_below(prev_loops, first_call, is_line)
 
     @staticmethod
-    def connected_in_same_island(uv_layer, loop_m, uv_m, active_only=False, get_uvVectors=False,
+    def connected_in_same_island(uv_layer, loop_m, uv_m, active_only=False, get_uv_uvVector=False,
                                  include_uvs=False, active_uvs=None, loops_done=None):
         """
         Given a "loop_m", search every other loops in the same island.
@@ -280,7 +291,7 @@ class SearchUV:
                 current_loops = adjacent_loops
             else:
                 ignore = False
-                if get_uvVectors:
+                if get_uv_uvVector:
                     ret = uv_uvVector = defaultdict(list)
                     for loop, uv in loops.items():
                         uv_data = loop[uv_layer]
@@ -387,7 +398,7 @@ class SearchUV:
                 continue
             island['active_loops'] = kwargs.pop('active_loops')
 
-            loops, uv_uvVectors = cls.connected_in_same_island(uv_layer, **kwargs, loops_done=loops_done, get_uvVectors=True)
+            loops, uv_uvVectors = cls.connected_in_same_island(uv_layer, **kwargs, loops_done=loops_done, get_uv_uvVector=True)
             loops_done.update(loops)
             if "ignore_island" in uv_uvVectors:  # If there is an edge loop in island already in to_modify
                 continue

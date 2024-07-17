@@ -7,7 +7,7 @@ import bmesh
 from .uv_utils import (
     Base_UVOpsPoll,
     SpaceBetweenIslands,
-    OrderedIndicesToLoops,
+    SeriesIndicesToLoops,
     SearchUV,
     get_center_uvs,
     get_uvLayer_bmFaces,
@@ -27,14 +27,14 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
         return self.value_axis
 
     def set_axis(self, value):
-        old_value = self.value_axis
+        current_value = self.value_axis
         offset = self.value_offset
-        if not all(old_value):
-            if value[0] and not old_value[0]:
+        if not all(current_value):
+            if value[0] and not current_value[0]:
                 offset[0] = offset[1]
-            elif value[1] and not old_value[1]:
+            elif value[1] and not current_value[1]:
                 offset[1] = offset[0]
-        old_value[:] = value
+        current_value[:] = value
 
     def get_offset(self):
         return self.value_offset
@@ -58,6 +58,18 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
                 self.value_offset[1] *= -1
         elif value == (False, True):
             self.value_offset[1] *= -1
+    
+    def set_toggle_island_axis(self, value):
+        self.island_axis = 'X' if (self.island_axis == 'Y') else 'Y'
+
+    _items_anchor = []
+    def callback_anchor(self, context):
+        _items_anchor = MXD_OT_UV_Distribute._items_anchor
+        _items_anchor.clear()
+        min, max = ("Leftmost", "Rightmost") if self.island_axis == 'X' else ("Bottommost", "Topmost")
+        _items_anchor.append(('MIN', min, ""))
+        _items_anchor.append(('MAX', max, ""))
+        return _items_anchor
 
     axis: BoolVectorProperty(name="", size=2, subtype='XYZ', get=get_axis, set=set_axis)
     value_axis: BoolVectorProperty(size=2, default=(True, True))
@@ -74,14 +86,18 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
     offset_xy: BoolProperty(name="", update=update_offset_xy)
     invert: BoolVectorProperty(name="", description="Invert offset value", size=2,
                                get=get_invert, set=set_invert)
+    
+    align_y_to_nearest: BoolProperty(name="Align Y to Nearest")
 
-    island_axis: BoolVectorProperty(name="", size=2, subtype='XYZ', default=(True, False))
-    island_align: BoolProperty(name="Align Island", default=True)
+    toggle_island_axis: BoolProperty(name="", set=set_toggle_island_axis)
+    island_axis: EnumProperty(name="", items=[('X', "", ""), ('Y', "", "")])
+    sort_by: EnumProperty(name="", items=[('LOCATION', "Location", ""), ('SIZE', "Size of Other Axis", "")], default='SIZE')
     center = ('CENTER', "Center", "")
-    island_alignment_x: EnumProperty(name="", items=[('LEFT', "Left", ""), center, ('RIGHT', "Right", "")], default='LEFT')
-    island_alignment_y: EnumProperty(name="", items=[('TOP', "Top", ""), center, ('BOTTOM', "Bottom", "")], default='TOP')
+    island_alignment_x: EnumProperty(name="Other Axis Alingment", items=[('LEFT', "Left", ""), center, ('RIGHT', "Right", "")], default='LEFT')
+    island_alignment_y: EnumProperty(name="Other Axis Alingment", items=[('TOP', "Top", ""), center, ('BOTTOM', "Bottom", "")], default='TOP')
 
-    is_ascending: BoolProperty(name="Ascending", default=True, description="Use the closest island from 0 as origin")
+    is_ascending: BoolProperty(name="Ascending", default=True)
+    anchor: EnumProperty(name="", items=callback_anchor)
 
     def draw(self, context):
         layout = self.layout
@@ -92,92 +108,83 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
         col2 = split.column()
 
         if self.stack:
-            island_axis = self.island_axis
+            col1.label()
+            col2.prop(self, "is_ascending")
 
-            if any(island_axis):
-                if not all(island_axis):
-                    if self.island_align:
-                        for i in range(2):
-                            i = 1 - i
-                            if island_axis[i]:
-                                if i == 1:
-                                    col1.label(text="Align: X")
-                                    col2.prop(self, "island_alignment_x")
-                                else:
-                                    col1.label(text="Align: Y" if (not island_axis[1 - i]) else "Y")
-                                    col2.prop(self, "island_alignment_y")
+            col1.separator(factor=0.5)
+            col2.separator(factor=0.5)
 
-                        col1.separator(factor=0.25)
-                        col2.separator(factor=0.25)
+            col1.label(text="Sort By")
+            col2.prop(self, "sort_by")
 
-                    col1.label(icon='BLANK1')
-                    col2.row().prop(self, "island_align")
+            col1.separator()
+            col2.separator()
 
-                col1.label(icon='BLANK1')
-                col2.prop(self, "is_ascending")
+            col1.label(text="Anchor")
+            col2.prop(self, "anchor")
 
-                col1.separator(factor=0.25)
-                col2.separator(factor=0.25)
+            col1.separator()
+            col2.separator()
 
-                s_col1 = col1.column(align=True)
-                s_col1.alignment = 'RIGHT'
+            s_col1 = col1.column(align=True)
+            s_col1.alignment = 'RIGHT'
 
-                col = col2.column(align=True)
-                for i in range(2):
-                    if island_axis[i]:
-                        row = col.row()
-                        row.prop(self, "space_between_islands", index=i)
-                        if i == 0:
-                            s_col1.label(text="Islands Space: X")
-                            row.prop(self, "reset_space_between_islands", icon='FILE_REFRESH', emboss=False)
-                        else:
-                            x_is_off = (not island_axis[1 - i])
-                            s_col1.label(text="Islands Space: Y" if x_is_off else "Y")
-                            if x_is_off:
-                                row.prop(self, "reset_space_between_islands", icon='FILE_REFRESH', emboss=False)
-                            else:
-                                row.label(icon='BLANK1')
+            s_col1.label(text=f"Islands Space: {self.island_axis}")
+            row = col2.row()
+            row.prop(self, "space_between_islands", index=0 if (self.island_axis == 'X') else 1)
+            row.prop(self, "reset_space_between_islands", icon='FILE_REFRESH', emboss=False)
 
-                col1.separator(factor=0.75)
-                col2.separator(factor=0.75)
+            col1.separator()
+            col2.separator()                 
 
             col1.label(text="Stack Along Axis")
-            col2.row().prop(self, "island_axis", toggle=True)
+            row = col2.row(align=True)
+            row.prop(self, "toggle_island_axis", text=self.island_axis, toggle=True)
+            row.prop(self, f"island_alignment_{'y' if (self.island_axis == 'X') else 'x'}", text="")    
+
         else:
             if any(axis := self.axis):
-                offset_xy = self.offset_xy
+                if not self.align_y_to_nearest:
+                    offset_xy = self.offset_xy
 
-                col = col1.column(align=True)
-                col.alignment = 'RIGHT'
-                if offset_xy:
-                    col.label(text="Offset: X")
-                row = col.row()
-                if all(axis):
-                    row.prop(self, "offset_xy", emboss=False, icon_only=True,
-                             icon='TRIA_UP' if offset_xy else 'TRIA_RIGHT')
-                s_row = row.row()
-                s_row.alignment = 'RIGHT'
-                text = "XY" if not offset_xy and all(axis) else "Y" if axis[1] else "X"
-                if not offset_xy:
-                    text = "Offset: " + text
-                s_row.label(text=text)         
+                    col = col1.column(align=True)
+                    col.alignment = 'RIGHT'
 
-                col1.label()
-                col = col2.column(align=True)
-                for i in range(2):
-                    if not (offset_xy or axis[i]):
-                        continue
+                    if offset_xy:  # Expanded
+                        col.label(text="Offset: X")
+
                     row = col.row()
-                    row.enabled = (axis[i])
-                    row.prop(self, "offset", index=i, slider=True)
-                    row.prop(self, "invert", index=i, icon_only=True, icon='ARROW_LEFTRIGHT', emboss=False)
+                    if all(axis):
+                        row.prop(self, "offset_xy", emboss=False, icon_only=True, icon='TRIA_UP' if offset_xy else 'TRIA_RIGHT')  # Expand button
+
+                    s_row = row.row()
+                    s_row.alignment = 'RIGHT'
+                    text = "XY" if not offset_xy and all(axis) else "Y" if axis[1] else "X"
                     if not offset_xy:
-                        break
+                        text = "Offset: " + text
+                    s_row.label(text=text)         
+
+                    col = col2.column(align=True)
+                    for i in range(2):
+                        if not (offset_xy or axis[i]):
+                            continue
+                        row = col.row()
+                        row.enabled = (axis[i])
+                        row.prop(self, "offset", index=i, slider=True)
+                        row.prop(self, "invert", index=i, icon_only=True, icon='ARROW_LEFTRIGHT', emboss=False)
+                        if not offset_xy:
+                            break
+
                 col1.separator(factor=0.25)
                 col2.separator(factor=0.25)
+
+                col1.label()
+                col2.prop(self, "align_y_to_nearest")
 
                 col1.label()
                 col2.prop(self, "connected")
+
+                col1.label()
                 row = col2.row()
                 row.enabled = (self.connected)
                 row.prop(self, "select_shortest_path")
@@ -192,64 +199,57 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
         def __init__(self, indicesToLoops, is_line):
             self.indicesToLoops = indicesToLoops
             self.is_line = is_line
+            self.uvs_adjacent_y = {}
 
     class UnconnectedLoops():
         def __init__(self):
-            self.indicesToLoops = OrderedIndicesToLoops()
+            self.indicesToLoops = SeriesIndicesToLoops()
 
     class Island():
         def __init__(self, indicesToLoops):
             self.indicesToLoops = indicesToLoops
             self.center, self.min_bounds, self.max_bounds = get_center_uvs(indicesToLoops.uvs, also_return_bounds=True)
+            self.dimensions = self.max_bounds - self.min_bounds
 
         def set_origin(self, operator):
-            origin = Vector((0, 0))
-            center = self.center
-            min_bounds = self.min_bounds
-            max_bounds = self.max_bounds
-            is_ascending = operator.is_ascending
+            self.origin = Vector((0, 0))
 
-            match tuple(operator.island_axis):
-                case (True, False):  # X
-                    origin.x = min_bounds.x if is_ascending else max_bounds.x
+            match operator.island_axis:
+                case 'X':
+                    self.origin.x = self.min_bounds.x if (operator.anchor == 'MIN') else self.max_bounds.x
                     match operator.island_alignment_y:
                         case 'TOP':
-                            origin.y = max_bounds.y
+                            self.origin.y = self.max_bounds.y
                         case 'CENTER':
-                            origin.y = center.y
+                            self.origin.y = self.center.y
                         case 'BOTTOM':
-                            origin.y = min_bounds.y
-
-                case (False, True):  # Y
-                    origin.y = min_bounds.y if is_ascending else max_bounds.y
+                            self.origin.y = self.min_bounds.y
+                case 'Y':
+                    self.origin.y = self.min_bounds.y if (operator.anchor == 'MIN') else self.max_bounds.y
                     match operator.island_alignment_x:
                         case 'RIGHT':
-                            origin.x = max_bounds.x
+                            self.origin.x = self.max_bounds.x
                         case 'CENTER':
-                            origin.x = center.x
+                            self.origin.x = self.center.x
                         case 'LEFT':
-                            origin.x = min_bounds.x
+                            self.origin.x = self.min_bounds.x
 
-                case (True, True):
-                    origin[:] = min_bounds if is_ascending else max_bounds
-
-            self.origin = origin
-            self.space_from_origin_to_bounds = (max_bounds if is_ascending else min_bounds) - origin
+            self.space_from_origin_to_bounds = (self.max_bounds if (operator.anchor == 'MIN') else self.min_bounds) - self.origin
 
     def invoke(self, context, event):
+        self.has_single_middle_vert = False
         self.objs = {context.object, *context.selected_objects}
-        self.stack = True if event.shift else (context.scene.tool_settings.uv_select_mode == 'ISLAND')
+        self.stack = context.scene.tool_settings.uv_select_mode == 'ISLAND' or event.shift
 
         if not self.stack:
-            self.objsData_selectionGroups = defaultdict(list)
-            self.objsData_unconnectedLoops = defaultdict(self.UnconnectedLoops)
+            self.objsName_selectionGroups = defaultdict(list)
+            self.objsName_unconnectedLoops = defaultdict(self.UnconnectedLoops)
 
             if self.select_shortest_path:
                 bpy.ops.uv.shortest_path_select(use_fill=True)
 
             for obj in self.objs:
-                data = obj.data
-                bm = bmesh.from_edit_mesh(data)
+                bm = bmesh.from_edit_mesh(obj.data)
                 uv_layer = bm.loops.layers.uv.active
                 loops_done = set()
 
@@ -265,12 +265,37 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
                             continue
                         loops, indicesToLoops, is_line = SearchUV.connected_in_line_or_not(uv_layer, loop, uv)
                         loops_done.update(loops)
-                        self.objsData_unconnectedLoops[data].indicesToLoops.extend(indicesToLoops)
+
+                        self.objsName_unconnectedLoops[obj.name].indicesToLoops.extend(indicesToLoops)
                         if is_line is None:
                             continue
-                        self.objsData_selectionGroups[data].append(self.SelectionGroup(indicesToLoops, is_line))
 
-            if len(self.objsData_selectionGroups) + len(self.objsData_unconnectedLoops) == 0:
+                        uv_loops = defaultdict(list)
+                        for loop in loops:
+                            uv_loops[tuple(loop[uv_layer].uv)].append(loop)
+
+                        if len(uv_loops) < 3:
+                            continue
+
+                        selection_group = self.SelectionGroup(indicesToLoops, is_line)
+
+                        if is_line:
+                            for uv, loops in tuple(uv_loops.items())[1: -1]:
+                                y_s = []
+                                for loop in loops:
+                                    for adjacent_loop in (loop.link_loop_prev, loop.link_loop_next):
+                                        uvVector = adjacent_loop[uv_layer].uv
+                                        if tuple(uvVector) in uv_loops:
+                                            continue
+                                        y_s.append(uvVector.y)
+                                
+                                if y_s:
+                                    y = min(y_s, key=lambda y: abs(y - uv[1]))
+                                    selection_group.uvs_adjacent_y[uv] = y
+
+                        self.objsName_selectionGroups[obj.name].append(selection_group)
+
+            if len(self.objsName_selectionGroups) + len(self.objsName_unconnectedLoops) == 0:
                 self.report({'INFO'}, "Selection not found.")
                 return {'CANCELLED'}
 
@@ -303,21 +328,27 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
     @staticmethod
     def get_description(button):
         axis, alignment = button.id.split("_")
-        X, Y = (True, False), (False, True)
-        button.island_axis = X if (axis in {'LEFT', 'RIGHT'}) else Y
-        button.is_ascending = (axis in {'LEFT', 'BOTTOM'})
-        if button.island_axis == X:
+        button.island_axis = 'X' if (axis in {'LEFT', 'RIGHT'}) else 'Y'
+        button.is_ascending = (axis in {'RIGHT', 'TOP'})
+        button.anchor = 'MIN' if (axis in {'LEFT', 'BOTTOM'}) else 'MAX'
+
+        if button.island_axis == 'X':
             button.island_alignment_y = alignment
         else:
             button.island_alignment_x = alignment
-        return f"{'X' if button.island_axis == X else 'Y'} Axis\n"  \
-               f"{'Ascending' if button.is_ascending else 'Descending'} order based on an island's {axis.lower()}most vertex\n"                 \
-               f"{alignment.title()} {'Vertical' if button.island_axis == X else 'Horizontal'} Alignment"
+
+        return f"{button.island_axis} Axis\n"                                                                  \
+               f"{'Ascending' if button.is_ascending else 'Descending'} order.\n"                              \
+               f"{alignment.title()} {'Vertical' if (button.island_axis == 'X') else 'Horizontal'} Alignment"
 
     def button_effects(self, context, button):
-        self.island_align = True
         self.island_axis = button.island_axis
         self.is_ascending = button.is_ascending
+        self.anchor = button.anchor
+
+        if self.sort_by == 'LOCATION' and self.anchor != 'MAX':
+            self.is_ascending = not self.is_ascending
+
         if hasattr(button, "island_alignment_y"):
             self.island_alignment_y = button.island_alignment_y
         else:
@@ -326,10 +357,9 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
         return self.invoke_stack(context)
 
     def invoke_stack(self, context):
-        self.objsData_islands = defaultdict(list)
+        self.objsName_islands = defaultdict(list)
         for obj in self.objs:
-            data = obj.data
-            bm = bmesh.from_edit_mesh(data)
+            bm = bmesh.from_edit_mesh(obj.data)
             uv_layer = bm.loops.layers.uv.active
             loops_done = set()
 
@@ -345,14 +375,15 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
                         continue
                     loops, indicesToLoops = SearchUV.connected_in_same_island(uv_layer, loop, uv, active_only=True, include_uvs=True)
                     loops_done.update(loops)
-                    self.objsData_islands[data].append(self.Island(indicesToLoops))
+                    self.objsName_islands[obj.name].append(self.Island(indicesToLoops))
 
         return self.execute(context)
 
     def execute(self, context):
         if not self.stack:
             if self.connected:
-                for data, selectionGroups in self.objsData_selectionGroups.items():
+                for objName, selectionGroups in self.objsName_selectionGroups.items():
+                    data = bpy.data.objects[objName].data
                     uv_layer, bm_faces = get_uvLayer_bmFaces(data)
                     for group in selectionGroups:
                         uv_uvVectors = group.indicesToLoops.get_uv_uvVectors(uv_layer, bm_faces)
@@ -363,12 +394,15 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
                             uv_uvVectors_x = {uv: uv_uvVectors[uv] for uv in sorted(uv_uvVectors, key=lambda uv: uv[0])}
                             uv_uvVectors_y = {uv: uv_uvVectors[uv] for uv in sorted(uv_uvVectors, key=lambda uv: uv[1])}
 
-                        self.modify_line(uv_uvVectors_x, uv_uvVectors_y, group.is_line)
+                        self.modify_line(uv_uvVectors_x, uv_uvVectors_y, group.is_line, uvs_adjacentY=group.uvs_adjacent_y)
 
                     bmesh.update_edit_mesh(data)
             else:
                 uv_uvVectors = defaultdict(list)
-                for data, unconnectedLoops in self.objsData_unconnectedLoops.items():
+                objsData = []
+                for objName, unconnectedLoops in self.objsName_unconnectedLoops.items():
+                    data = bpy.data.objects[objName].data
+                    objsData.append(data)
                     uv_layer, bm_faces = get_uvLayer_bmFaces(data)
                     for uv, uvVectors in unconnectedLoops.indicesToLoops.get_uv_uvVectors(uv_layer, bm_faces).items():
                         uv_uvVectors[uv].extend(uvVectors)
@@ -377,17 +411,16 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
                 uv_uvVectors_y = {uv: uv_uvVectors[uv] for uv in sorted(uv_uvVectors, key=lambda uv: uv[1])}
 
                 self.modify_line(uv_uvVectors_x, uv_uvVectors_y, False)
-                for data in self.objsData_unconnectedLoops:
+                for data in objsData:
                     bmesh.update_edit_mesh(data)
             return {'FINISHED'}
 
-        elif any(self.island_axis):
+        else:
             return self.stack_islands(context)
 
-        return {'CANCELLED'}
+    def modify_line(self, uv_uvVectors_x, uv_uvVectors_y, is_line, uvs_adjacentY=None):
+        offset = self.value_offset
 
-    def modify_line(self, uv_uvVectors_x, uv_uvVectors_y, is_line):
-        offset = self.offset
         for i in range(2):
             if not self.axis[i]:
                 continue
@@ -414,38 +447,50 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
             if is_not_ascending:
                 uvs.reverse()
 
-            # This is so that when line is offset, it would "slide" both ways (/ and \) properly (would only normally work on one side)
-            reverse = False
-            if is_line and all(self.axis):
-                if i == 1:
-                    if uvs_x[0][1] > uvs_x[-1][1]:
-                        # If the least x point is the greatest y, offset signs should be opposite, otherwise same
-                        reverse = True
-                else:
-                    uvs_x = uvs
-
+            # Get boundaries which distance difference will serve as basis for increment
             boundaries = (uvs[0][i], uvs[-1][i]) if is_line else (uvs[0], uvs[-1])
             upper_bound = max(boundaries)
             lower_bound = min(boundaries)
 
-            if (i == 1) and all(self.axis) and not self.offset_xy:
-                x_greater = (offset[0] > 0)
-                y_greater = (offset[1] > 0)
-                same_signs = (x_greater - y_greater == 0)
+            if is_line and self.align_y_to_nearest and i == 1:
+                x1, y1 = uvs[-1]  # When i == 1 (y axis), uvs[-1] has the highest y
+                x2, y2 = uvs[0]
+                r_slope = (x2 - x1) / (y2 - y1)
 
-                if reverse:
-                    if same_signs:  # Only flip the sign if both are the same
-                        offset[i] *= -1
-                elif not same_signs:
-                        offset[i] *= -1
+                for uv in uvs[1: -1]:
+                    y = uvs_adjacentY[uv]
+                    x = x1 + (y - y1) * r_slope  # https://math.stackexchange.com/a/2297532
 
-            offset_factor = 1 - abs(offset[i])
-            offset_distance = (upper_bound - lower_bound) * offset_factor
+                    for uvVector in a_dict[uv]:
+                        uvVector[:] = x, y
 
-            if offset[i] > 0:
-                lower_bound = upper_bound - offset_distance
-            elif offset[i] < 0:
-                upper_bound = lower_bound + offset_distance
+                return
+
+            if offset[i]:
+                # Offset boundaries: upper_bound downwards or lower_bound upwards
+
+                if is_line and all(self.axis) and not self.offset_xy:
+                    # This is so that when line is offset, points would "slide" both ways (/ and \) properly (would only normally work on one side)
+                    if i == 0:
+                        uvs_x = uvs
+                    else:
+                        same_signs = ((offset[0] > 0) == (offset[1] > 0))
+
+                        # If the least x point is the greatest y, offset signs should be opposite, otherwise they should be the same
+                        if uvs_x[0][1] > uvs_x[-1][1]:  
+                            if same_signs:  # Only flip the sign if both are the same
+                                offset[i] *= -1
+
+                        elif not same_signs:
+                            offset[i] *= -1
+
+                offset_distance = (upper_bound - lower_bound) * abs(offset[i])
+
+                if offset[i] > 0:
+                    # If offset is towards right (greater than 0), points will visually go towards the upper_bound (lower_bound is offset towards upper_bound)
+                    lower_bound += offset_distance
+                elif offset[i] < 0:
+                    upper_bound -= offset_distance
 
             distance = upper_bound - lower_bound
             increment = distance / parts
@@ -454,6 +499,7 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
                     new_uv = lower_bound + (increment * index)
                     for uvVector in a_dict[key]:
                         uvVector[i] = new_uv
+
                 # #  Offset Visual
                 #     continue
                 # elif index == 0:
@@ -465,42 +511,53 @@ class MXD_OT_UV_Distribute(Base_UVOpsPoll, SpaceBetweenIslands, MXD_OT_Utils_Pie
                 #     break
 
     def stack_islands(self, context):
-        # TODO: Make self.island_axis enumProp, removing not not(all) and all
-        islands = [island for islands in self.objsData_islands.values() for island in islands]
+        islands = [island for islands in self.objsName_islands.values() for island in islands]
         if len(islands) < 2:
             self.report({'INFO'}, "There must be 2 or more selections.")
             return {'CANCELLED'}
 
-        space_between_islands = self.get_space_between_islands(context)
-        if not self.is_ascending:
-            space_between_islands *= -1
-
-        for data, obj_islands in self.objsData_islands.items():
+        objsData = []
+        for objName, obj_islands in self.objsName_islands.items():
+            data = bpy.data.objects[objName].data
+            objsData.append(data)
             uv_layer, bm_faces = get_uvLayer_bmFaces(data)
             for island in obj_islands:
                 island.indicesToLoops.get_uv_uvVectors(uv_layer, bm_faces, embed=True)
                 island.set_origin(self)
 
-        for i in range(2):
-            if not self.island_axis[i]:
-                continue
-            other = 1 - i
+        i = 0 if (self.island_axis == 'X') else 1
+        other = 1 - i
 
-            sorted_islands = sorted(islands, key=lambda island: island.origin[i], reverse=(not self.is_ascending))
-            basis_origin = list(sorted_islands[0].origin)
-            for index, island in enumerate(sorted_islands):
-                if index != 0:
-                    offset = basis_origin[i] - island.origin[i]
+        starting_island = (min if (self.anchor == 'MIN') else max)(islands, key=lambda island: island.origin[i])
+        starting_origin = starting_island.origin.copy()
 
-                    for uvVectors in island.indicesToLoops.uv_uvVectors.values():
-                        for uvVector in uvVectors:
-                            uvVector[i] += offset
-                            if self.island_align and not self.island_axis[other]:
-                                uvVector[other] += basis_origin[other] - island.origin[other]
+        if self.sort_by == 'LOCATION':
+            sorted_islands = sorted(islands, key=lambda island: island.origin[i])
+        else:  # 'SIZE'
+            sorted_islands = sorted(islands, key=lambda island: island.dimensions[other])
 
-                basis_origin[i] += island.space_from_origin_to_bounds[i] + space_between_islands[i]
+        space_between_islands = self.get_space_between_islands(context)[i]
 
-        for data in self.objsData_islands.keys():
+        if self.anchor == 'MAX':
+            # Since if anchor is 'MAX' (e.g., rightmost, topmost), starting from the starting origin,...
+            # ...islands are stacked towards negative/'MIN' (e.g., leftmost, bottommost)
+            space_between_islands *= -1  # So make the space negative to decrement
+            sorted_islands.reverse()     # And since they're decrementing, reverse the islands so that the least island will be last and leftmost/bottommost
+
+        if not self.is_ascending:
+            sorted_islands.reverse()
+
+        for island in sorted_islands:
+            offset = starting_origin[i] - island.origin[i]
+
+            for uvVectors in island.indicesToLoops.uv_uvVectors.values():
+                for uvVector in uvVectors:
+                    uvVector[i] += offset
+                    uvVector[other] += starting_origin[other] - island.origin[other]
+            
+            starting_origin[i] += island.space_from_origin_to_bounds[i] + space_between_islands
+
+        for data in objsData:
             bmesh.update_edit_mesh(data)
 
         return {'FINISHED'}

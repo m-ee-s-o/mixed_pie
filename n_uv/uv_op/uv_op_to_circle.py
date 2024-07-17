@@ -7,7 +7,7 @@ import bmesh
 from mathutils import Matrix, Vector
 from .uv_utils import (
     Base_UVOpsPoll,
-    OrderedIndicesToLoops,
+    SeriesIndicesToLoops,
     SearchUV,
     get_center_uvs,
     get_uvLayer_bmFaces,
@@ -44,7 +44,7 @@ class MXD_OT_UV_ToCirlce(Base_UVOpsPoll, Operator):
 
             self.center = get_center_uvs(loop_uv.values())
             self.center_of_active = get_center_uvs(active_loops.values())
-            self.indicesToLoops = OrderedIndicesToLoops()
+            self.indicesToLoops = SeriesIndicesToLoops()
             self.indicesToLoops.bulk_construct(loop_uv)
 
     def draw(self, context):

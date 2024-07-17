@@ -20,9 +20,7 @@ class MXD_MT_PIE_UVEditor(Menu):
         pie.operator("wm.call_menu_pie", text="Align Vertices, Move Islands",                        # Right
                      icon='BLANK1').name = "MXD_MT_PIE_UVEditor_AlignVerticesMoveIslands"
 
-        op = pie.operator("uv.align_rotation", icon='BLANK1')                                        # Bottom
-        op.method = 'GEOMETRY'
-        op.axis = 'Z'
+        pie.separator()  # Bottom
 
         pie.operator("uv.use_snap", depress=(snap),                                                  # Top
                      icon='CHECKBOX_HLT' if snap else 'CHECKBOX_DEHLT')
@@ -32,8 +30,8 @@ class MXD_MT_PIE_UVEditor(Menu):
         pie.operator("edit.tool_settings", depress=(proportional_editing),                           # Top_right
                      icon='CHECKBOX_HLT' if proportional_editing else 'CHECKBOX_DEHLT',
                      text="Proportional Editing").mode = 'PROPORTIONAL_EDITING'
-        pie.operator("uv.to_circle", icon='BLANK1')                                                  # Bottom_left
-        pie.operator("uv.average_islands_scale", icon='BLANK1')                                      # Bottom_right
+        pie.operator("uv.distribute", icon='BLANK1')                                                  # Bottom_left
+        pie.operator("uv.to_circle", icon='BLANK1')                                                   # Bottom_right
 
 
 class MXD_MT_PIE_UVEditor_MarkEgde(Menu):
@@ -66,7 +64,11 @@ class MXD_MT_PIE_UVEditor_Rotate_Flip(Menu):
 
         pie.separator()  # Left
         pie.operator("scale.xyz_2d", text="Flip Horizontal", icon=icon).x = -1   # Right
-        pie.separator()  # Bottom
+
+        op = pie.operator("uv.align_rotation", icon='BLANK1')                    # Bottom
+        op.method = 'GEOMETRY'
+        op.axis = 'Z'
+
         pie.operator("scale.xyz_2d", text="Flip Vertical", icon=icon).y = -1     # Top
 
         pie.operator_context = 'EXEC_DEFAULT'

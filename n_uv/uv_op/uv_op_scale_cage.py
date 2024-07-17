@@ -1,3 +1,4 @@
+from collections import defaultdict
 import bpy
 from bpy.types import Operator
 from bpy.props import  BoolProperty, BoolVectorProperty 
@@ -37,10 +38,8 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
         )
         CROSS = {1: 1, 3: 0, 5: 1, 7: 0}  # BottomRightTopLeft and their respective axis (0: x, 1: y)
 
-        def __init__(self, bms, objsData_indicesToLoops, UI_SCALE):
+        def __init__(self, objsData_indicesToLoops, UI_SCALE):
             self.UI_SCALE = UI_SCALE
-            self._bounds = {}
-            self.bms = bms          # bm needs to be stored somewhere (e.g., cls/instance var) else it won't work
             self.objsData_indicesToLoops = objsData_indicesToLoops
             self.objs_data = tuple(objsData_indicesToLoops.keys())
             self.vertices = []      # For drawing widget
@@ -56,35 +55,36 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             self.org_uv_uvVectors = self.uv_uvVectors  # A constant copy which is only used to revert uvs when operation is cancelled
             self.new_uv_uvVectors = {}                 # Modification is always done with prior values when mouse is held; Only updates when released
 
-        def __getattribute__(self, name):
-            get = super().__getattribute__
-            if name in (bounds := get("_bounds")):
-                value = bounds[name]
-                return value['uv'][value['axis']]
-            else:
-                return get(name)
-
-        def __setattr__(self, name, value):
-            if name in {'min_x', 'max_x', 'min_y', 'max_y'}:
-                axis = 0 if name.endswith("x") else 1
-                self._bounds[name] = {'uv': value, 'axis': axis}
-            else:
-                super().__setattr__(name, value)
-
         def initialize(self):
             self.get_uv_uvVectors()
             uv_uvVectors = self.uv_uvVectors
             x = sorted(uv_uvVectors, key=lambda uv: uv[0])
             y = sorted(uv_uvVectors, key=lambda uv: uv[1])
-            self.min_x = uv_uvVectors[x[0]][0]
-            self.max_x = uv_uvVectors[x[-1]][0]
-            self.min_y = uv_uvVectors[y[0]][0]
-            self.max_y = uv_uvVectors[y[-1]][0]
+            self._min_x = uv_uvVectors[x[0]][0]
+            self._max_x = uv_uvVectors[x[-1]][0]
+            self._min_y = uv_uvVectors[y[0]][0]
+            self._max_y = uv_uvVectors[y[-1]][0]
             self.center = self.get_bounds_center()
             if self.is_center_origin:
                 self.origin = self.center
             elif self.index is not None:
                 self.origin = Vector(self.get_points()[self.index - 4])
+
+        @property
+        def min_x(self):
+            return self._min_x.x
+
+        @property
+        def max_x(self):
+            return self._max_x.x
+
+        @property
+        def min_y(self):
+            return self._min_y.y
+
+        @property
+        def max_y(self):
+            return self._max_y.y
 
         @property
         def center_x(self):
@@ -101,14 +101,8 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             return [(getattr(self, x), getattr(self, y)) for x, y in self.POINTS_BOUND_DEF]
 
         def get_points_area(self):
-            try:
-                uv_layer, loop = self.validity_tester
-                loop[uv_layer]
-            except ReferenceError:
-                try:
-                    self.initialize()
-                except ValueError:  # Because of Object Mode when undo-ed too much
-                    return
+            if not self.validity_test_loop.is_valid:
+                self.initialize()
 
             vtr = bpy.context.region.view2d.view_to_region
             vertices = self.vertices
@@ -151,13 +145,15 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
             self.update_data()
 
         def move_uv(self, offset):
-            self.new_uv_uvVectors = {}
+            # TODO: Remove move, redundant
+            self.new_uv_uvVectors = defaultdict(list)
             offset = Vector(offset)
             for uv, uvVectors in self.uv_uvVectors.items():
                 new_uv = Vector(uv) + offset
                 for uvVector in uvVectors:
                     uvVector[:] = new_uv
                 self.new_uv_uvVectors[tuple(new_uv)] = uvVectors
+
             self.update_data()
 
         def replace_values(self):
@@ -343,20 +339,18 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                         uv_data = loop[uv_layer]
                         if not uv_data.select:
                             continue
-                        loops, indicesToLoops = SearchUV.connected_in_same_island(uv_layer, loop, tuple(uv_data.uv),
-                                                                                active_only=True)
+                        loops, indicesToLoops = SearchUV.connected_in_same_island(uv_layer, loop, tuple(uv_data.uv), active_only=True)
                         loops_done.update(loops)
                         self.active_loops.update(loops)
-                        selection_groups.append(self.SelectionGroup(bm, {data: indicesToLoops}, self.ui_scale))            
+                        selection_groups.append(self.SelectionGroup({data: indicesToLoops}, self.ui_scale))            
+                bm.free()
         else:
-            objs_bm = set()
             objsData_indicesToLoops = {}
             for obj in objs:
                 data = obj.data
                 bm = bmesh.from_edit_mesh(data)
                 uv_layer = bm.loops.layers.uv.active
                 indicesToLoops = IndicesToLoops()
-                changedState = False
 
                 for face in bm.faces:
                     if not face.select:
@@ -368,15 +362,13 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
                         if uv_data.select:
                             indicesToLoops.construct(loop)
                             self.active_loops.add(loop)
+                bm.free()
 
-                if changedState:
-                    bmesh.update_edit_mesh(data)
                 if indicesToLoops:
-                    objs_bm.add(bm)
                     objsData_indicesToLoops[data] = indicesToLoops
 
             if objsData_indicesToLoops:
-                group = self.SelectionGroup(tuple(objs_bm), objsData_indicesToLoops, self.ui_scale)
+                group = self.SelectionGroup(objsData_indicesToLoops, self.ui_scale)
                 selection_groups.append(group)
 
         if past_len == len(selection_groups):
@@ -395,6 +387,7 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
 
         if getattr(self, "finished", False):
             bpy.types.SpaceImageEditor.draw_handler_remove(self.handler, 'WINDOW')
+            window.cursor_modal_restore()
             area.header_text_set(None)
             return {'FINISHED'}
 
@@ -825,7 +818,6 @@ class MXD_OT_UV_ScaleCage(Base_UVOpsPoll, Operator):
 
                 self.offset = [0, 0]
                 self.check_cursor_location(context)
-                bpy.ops.ed.undo_push(message=self.bl_label)
 
     def cancel_current_action(self, context):
         self.init_cur_loc = None
