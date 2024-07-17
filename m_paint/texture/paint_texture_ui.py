@@ -71,9 +71,8 @@ class MXD_MT_PIE_PaintTexture(Menu):
     def draw(self, context):
         affect_alpha = context.tool_settings.image_paint.brush.use_alpha
         paint_through = context.scene.paint_through.texture
-        blend_mode_path = "tool_settings.image_paint.brush.blend"
-        active = context.workspace.tools.from_space_view3d_mode(context.mode).idname
-        has_blend_mode = (active in {"builtin_brush.Draw", "builtin_brush.Fill"})
+        has_blend_mode = (context.workspace.tools.from_space_view3d_mode(context.mode).idname in {"builtin_brush.Draw", "builtin_brush.Fill"})
+        is_x_mirror = context.active_object.use_mesh_mirror_x
         view_3d = (context.area.ui_type == 'VIEW_3D')
 
         layout = self.layout
@@ -86,19 +85,24 @@ class MXD_MT_PIE_PaintTexture(Menu):
         else:  # else 'IMAGE_EDITOR'
             pie.separator()   # Left
 
-        pie.separator()  # Right
+        if view_3d:
+            pie.operator("wm.context_toggle", depress=(is_x_mirror),
+                         icon='CHECKBOX_HLT' if is_x_mirror else 'CHECKBOX_DEHLT',
+                         text="X Mirror").data_path = "active_object.use_mesh_mirror_x"
+        else:
+            pie.separator()  # Right
+
         pie.separator()  # Bottom
 
         if has_blend_mode:
             op = pie.operator("wm.context_toggle_enum", text="Mix | RemoveAlpha", icon='BLANK1')
-            op.data_path = blend_mode_path
+            op.data_path = "tool_settings.image_paint.brush.blend"
             op.value_1 = 'ERASE_ALPHA'
             op.value_2 = 'MIX'
         else:
             pie.separator()  # Top
 
-        pie.operator("wm.call_panel", text="Image Layers",                                            # Top_left
-                     icon='IMAGE_DATA').name = "MXD_PT_PaintTexture_ImageLayersPanel"
+        pie.separator()  # Top_left
 
         pie.separator()  # Top_right
 
