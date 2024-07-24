@@ -60,6 +60,9 @@ class MXD_OT_Modifier(Base_Modifier_Poll, Operator):
             case "subdivision surface":
                 self.add_modifier(context, event, "Subdivision", 'SUBSURF', False, False)
             case "solidify (for inverted hull)":
+                if not context.object.data.materials:
+                    self.report({'WARNING'}, "No material in object. Set one first since outline material shouldn't be the base.")
+                    return {'CANCELLED'}
                 self.add_modifier(context, event, "Solidify(IH)", 'SOLIDIFY', True, False)
         return {'FINISHED'}
 
@@ -91,6 +94,7 @@ class MXD_OT_Modifier(Base_Modifier_Poll, Operator):
                         mod.use_quality_normals = True
                         mod.material_offset = index
                         mod.material_offset_rim = 1
+                        mod.use_rim = False
 
         self.len_ = len(self.objs)
         self.report({'INFO'}, f"Added {mod.name} to {self.len_} object{'s' if self.len_ > 1 else ''}.")
