@@ -1,4 +1,3 @@
-from collections import defaultdict
 import bpy
 from bpy.types import Operator
 from bpy.props import FloatVectorProperty
@@ -145,7 +144,8 @@ class MXD_OT_UV_GetDistance(Base_UVOpsPoll, Operator):
         vertices = []
         vtr = bpy.context.region.view2d.view_to_region
 
-        img = bpy.context.space_data.image
+        space_data = bpy.context.space_data
+        img = space_data.image
         img_size = Vector(img.size if img else (256, 256))
         blf.size(0, self.font_size)
 
@@ -166,8 +166,6 @@ class MXD_OT_UV_GetDistance(Base_UVOpsPoll, Operator):
                 blf.position(0, *halfway, 0)
                 blf.draw(0, f"{length:.02f}")        
 
-        space_data = bpy.context.space_data
-        img = space_data.image
         cursor = space_data.cursor_location
         if space_data.uv_editor.show_pixel_coords:
             cursor = Vector((cursor[i] / img_size[i] for i in range(2)))
