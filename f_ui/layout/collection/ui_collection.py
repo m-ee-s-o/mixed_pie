@@ -181,7 +181,7 @@ class Collection(Bounds):
             for col in self.collection_columns:
                 col.height = self.height
 
-        self.width = sum(column.width for column in self.collection_columns) or (300 * self.ui_scale)  # or some_default_width
+        self.width = sum(column.width for column in self.collection_columns) or (400 * self.ui_scale)  # or some_default_width
 
         # The following are still needed even if there are no columns
         self.resize_ui_inactive = []
@@ -561,7 +561,7 @@ class CollectionItem(Bounds):
 
         starting_index = len(self.children)
         self.draw_func(self, self.collection, self.item)
-        if self.children:
+        if len(self.children) > starting_index:
             PanelLayout.adjust(self, self.children[starting_index])
 
     def label(self, text):
