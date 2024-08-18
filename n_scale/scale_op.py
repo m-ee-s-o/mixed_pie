@@ -12,7 +12,7 @@ class MXD_OT_3D_ScaleXYZby(Operator):
     y: FloatProperty(name="", precision=3, default=1, options={'SKIP_SAVE'})
     z: FloatProperty(name="", precision=3, default=1, options={'SKIP_SAVE'})
     pivot_cursor: BoolProperty(
-        name="", options={'SKIP_SAVE'},
+        name="3D Cursor as Pivot", options={'SKIP_SAVE'},
         description="If current transform pivot point is not the 3D Cursor, "
                     "change it to be it, and then change it back")
 
@@ -54,7 +54,7 @@ class MXD_OT_3D_ScaleXYZby(Operator):
         z.prop(self, "z", text="Z")
         z.active = True if self.z != 1 else False
 
-        layout.prop(self, "pivot_cursor", text="Pivot: 3D Cursor", icon='PIVOT_CURSOR', toggle=True)
+        layout.prop(self, "pivot_cursor")
 
     def execute(self, context):
         scale = (self.x, self.y, self.z)
@@ -77,7 +77,7 @@ class MXD_OT_2D_ScaleXYZby(Operator):
     x: FloatProperty(name="", precision=3, default=1, options={'SKIP_SAVE'})
     y: FloatProperty(name="", precision=3, default=1, options={'SKIP_SAVE'})
     pivot_cursor: BoolProperty(
-        name="", default=True,  # options={'SKIP_SAVE'},
+        name="3D Cursor as Pivot", default=True,
         description="If current transform pivot point is not the 3D Cursor, "
                     "change it to be it, and then change it back")
 
@@ -115,7 +115,7 @@ class MXD_OT_2D_ScaleXYZby(Operator):
         y.prop(self, "y", text="Y")
         y.active = True if self.y != 1 else False
 
-        layout.prop(self, "pivot_cursor", text="Pivot: 3D Cursor", icon='PIVOT_CURSOR', toggle=True)
+        layout.prop(self, "pivot_cursor")
 
     def invoke(self, context, event):
         if event.shift:
