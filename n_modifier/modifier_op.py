@@ -146,7 +146,7 @@ class MXD_OT_Modifier_Symmetrize(Base_Modifier_Poll, Operator):
             bpy.ops.ed.undo_push(message=f'Before "{self.bl_label}"')
         self.shift = True
         ret = self.execute(context)
-        self.report({'INFO'}, f"Applied to {self.len_} object{'s' if self.len_ > 1 else ''}.")        
+        self.report({'INFO'}, f"Symmetrized {self.len_} object{'s' if self.len_ > 1 else ''}.")        
         return ret
 
     def execute(self, context):
