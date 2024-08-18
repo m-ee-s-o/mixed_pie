@@ -1,25 +1,6 @@
 import bpy
 from bpy.types import Operator
 from bpy.props import IntProperty, StringProperty
-import addon_utils
-
-
-class MXD_OT_Utils_EnableAddon(Operator):
-    bl_idname = "utils.enable_addon"
-    bl_label = ""
-    bl_options = {'REGISTER', 'INTERNAL'}    
-
-    name: StringProperty(options={'HIDDEN', 'SKIP_SAVE'})
-
-    def execute(self, context):
-        # https://blender.stackexchange.com/questions/32409/how-to-enable-and-disable-add-ons-via-python
-        if (addon := addon_utils.enable(self.name, default_set=True)):
-            addon_name = addon.bl_info['name']
-            self.report({'INFO'}, f'Enabled "{addon_name}"')
-            return {'FINISHED'}
-        else:
-            self.report({'WARNING'}, f'"{self.name}" is not found.')
-            return {'CANCELLED'}
 
 
 class MXD_OT_Utils_TogglePropertiesButWithDesciption(Operator):
@@ -101,7 +82,6 @@ class MXD_OT_Utils_Dummy(Operator):
 
 
 classes = (
-    MXD_OT_Utils_EnableAddon,
     MXD_OT_Utils_TogglePropertiesButWithDesciption,
     MXD_OT_Utils_ModifyCollectionItem,
     MXD_OT_Utils_Dummy,

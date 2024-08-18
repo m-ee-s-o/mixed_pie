@@ -120,22 +120,23 @@ class MXD_PT_SelectMoreOrLess(Panel):
 class MXD_MT_PIE_LoopTools(Menu):
     bl_label = "Edit: Mesh, LoopTools"
 
+    @classmethod
+    def poll(self, context):
+        # https://blender.stackexchange.com/questions/43703/how-to-tell-if-an-add-on-is-present-using-python
+        return addon_utils.check("bl_ext.blender_org.looptools") == (True, True)
+
     def draw(self, context):
         layout = self.layout
         pie = layout.menu_pie()
 
-        # https://blender.stackexchange.com/questions/43703/how-to-tell-if-an-add-on-is-present-using-python
-        if addon_utils.check("mesh_looptools") == (True, True):
-            pie.operator("mesh.looptools_circle", icon='BLANK1')                              # Left
-            pie.operator("mesh.looptools_bridge", text="Loft", icon='BLANK1').loft = True     # Right
-            pie.operator("mesh.looptools_space", icon='BLANK1')                               # Bottom
-            pie.operator("mesh.looptools_flatten", icon='BLANK1')                             # Top
-            pie.operator("mesh.looptools_curve", icon='BLANK1')                               # Top_left
-            pie.operator("mesh.looptools_gstretch", icon='BLANK1')                            # Top_right
-            pie.operator("mesh.looptools_bridge", text="Bridge", icon='BLANK1').loft = False  # Bottom_left
-            pie.operator("mesh.looptools_relax", icon='BLANK1')                               # Bottom_right
-        else:
-            pie.operator("utils.enable_addon", text="Enable LoopTools", icon='BLANK1').name = "mesh_looptools"
+        pie.operator("mesh.looptools_circle", icon='BLANK1')                              # Left
+        pie.operator("mesh.looptools_bridge", text="Loft", icon='BLANK1').loft = True     # Right
+        pie.operator("mesh.looptools_space", icon='BLANK1')                               # Bottom
+        pie.operator("mesh.looptools_flatten", icon='BLANK1')                             # Top
+        pie.operator("mesh.looptools_curve", icon='BLANK1')                               # Top_left
+        pie.operator("mesh.looptools_gstretch", icon='BLANK1')                            # Top_right
+        pie.operator("mesh.looptools_bridge", text="Bridge", icon='BLANK1').loft = False  # Bottom_left
+        pie.operator("mesh.looptools_relax", icon='BLANK1')                               # Bottom_right
 
 
 classes = (
