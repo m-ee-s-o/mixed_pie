@@ -171,8 +171,11 @@ class MXD_OT_Armature_Rigify_GenerateWrapper(Base_Rigify_Poll, Operator):
             target_rig = target_rig or bpy.data.objects[bpy.data.armatures[-1].name]
             if target_rig:
                 for p_bone in target_rig.pose.bones:
-                    if p_bone.get("IK_FK") is not None:
-                        p_bone["IK_FK"] = 1
+                    if not event.shift:
+                        # Made this toggle-able so that when generating a rig for the first time, IK correctness can be checked first
+                        # For subsequent generations especially for weight painting, I'd prefer FK as default
+                        if p_bone.get("IK_FK") is not None:
+                            p_bone["IK_FK"] = 1
                     if p_bone.get("IK_Stretch") is not None:
                         p_bone["IK_Stretch"] = 0
                     p_bone.bone.bbone_segments = 1
