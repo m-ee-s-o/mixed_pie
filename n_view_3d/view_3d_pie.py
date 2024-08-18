@@ -41,10 +41,8 @@ class MXD_MT_PIE_ViewportDisplay(Menu):
                              icon='BLANK1').name = "MXD_DATA_PT_display"
             else:
                 match context.mode:
-                    case 'OBJECT':
-                        pie.operator("shade.smooth", icon='BLANK1').mode = 'OBJECT'                        
-                    case 'EDIT_MESH' | 'EDIT_CURVE':
-                        pie.operator("shade.smooth", icon='BLANK1').mode = 'NON_OBJ'
+                    case 'OBJECT' | 'EDIT_MESH' | 'EDIT_CURVE':
+                        pie.operator("object.shade_auto_smooth_180", icon='BLANK1')                        
 
 
 class MXD_MT_PIE_Show(Menu):
